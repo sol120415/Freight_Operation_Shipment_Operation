@@ -330,3 +330,5 @@ node "./node_modules/next/dist/bin/next" build
 ---
 
 Built with a clean white UI, pink accents, and a dark slate command sidebar.
+#   f s f s d f  
+ 
