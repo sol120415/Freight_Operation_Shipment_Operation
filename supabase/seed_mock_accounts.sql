@@ -4,14 +4,14 @@
 -- This script provisions initial mock testing accounts for multi-role access:
 --
 -- 1. ADMIN ACCOUNT:
---    - Email:    admin@virshipexpress.com (also aliases admin@freightos.demo)
+--    - Email:    hazems120415@gmail.com (legacy demo Admin account also remains)
 --    - Password: demo123456
 --    - Role:     Admin (full administrative access to hubs, manifests, handovers,
 --                sellers, customers, audit logs, and settings)
 --    - Landing:  /admin/dashboard
 --
 -- 2. SELLER ACCOUNT:
---    - Email:    seller@virshipexpress.com (also aliases seller@freightos.demo)
+--    - Email:    pinkysol07@gmail.com (legacy demo Seller account also remains)
 --    - Password: demo123456
 --    - Role:     Seller (restricted to seller-specific parcels & booking)
 --    - Landing:  /seller/dashboard
@@ -35,7 +35,7 @@ begin
     'SELL-DEMO-0001',
     'Amora, Daniella Sophia P.',
     'Airship Express Premier Seller',
-    'seller@virshipexpress.com',
+    'pinkysol07@gmail.com',
     '0945 441 8789',
     'Daily',
     true
@@ -52,10 +52,10 @@ begin
   end if;
 
   -- ---------------------------------------------------------------------------
-  -- 2. ADMIN ACCOUNTS (admin@virshipexpress.com and admin@freightos.demo)
+  -- 2. ADMIN ACCOUNTS (hazems120415@gmail.com and legacy admin@freightos.demo)
   -- ---------------------------------------------------------------------------
-  -- Account A: admin@virshipexpress.com
-  if not exists (select 1 from auth.users where email = 'admin@virshipexpress.com') then
+  -- Account A: hazems120415@gmail.com
+  if not exists (select 1 from auth.users where email = 'hazems120415@gmail.com') then
     v_admin_uid := gen_random_uuid();
     insert into auth.users (
       instance_id, id, aud, role, email, encrypted_password,
@@ -64,7 +64,7 @@ begin
       created_at, updated_at
     ) values (
       '00000000-0000-0000-0000-000000000000', v_admin_uid, 'authenticated', 'authenticated',
-      'admin@virshipexpress.com', v_pass, now(), '', '',
+      'hazems120415@gmail.com', v_pass, now(), '', '',
       '', '', '{"provider":"email","providers":["email"]}',
       '{"role":"Admin","full_name":"Admin Sol, Emmanuel M."}',
       now(), now()
@@ -90,7 +90,7 @@ begin
   -- Update profiles for Admins
   insert into public.profiles (id, full_name, email, role, org_name, is_active)
   select id, 'Admin Sol, Emmanuel M.', email, 'Admin'::public.app_role, 'Airship Express Operations Hub', true
-    from auth.users where email = 'admin@virshipexpress.com'
+    from auth.users where email = 'hazems120415@gmail.com'
   on conflict (id) do update set
     role = 'Admin'::public.app_role,
     full_name = 'Admin Sol, Emmanuel M.',
@@ -107,10 +107,10 @@ begin
     is_active = true;
 
   -- ---------------------------------------------------------------------------
-  -- 3. SELLER ACCOUNTS (seller@virshipexpress.com and seller@freightos.demo)
+  -- 3. SELLER ACCOUNTS (pinkysol07@gmail.com and legacy seller@freightos.demo)
   -- ---------------------------------------------------------------------------
-  -- Account A: seller@virshipexpress.com
-  if not exists (select 1 from auth.users where email = 'seller@virshipexpress.com') then
+  -- Account A: pinkysol07@gmail.com
+  if not exists (select 1 from auth.users where email = 'pinkysol07@gmail.com') then
     v_seller_uid := gen_random_uuid();
     insert into auth.users (
       instance_id, id, aud, role, email, encrypted_password,
@@ -119,7 +119,7 @@ begin
       created_at, updated_at
     ) values (
       '00000000-0000-0000-0000-000000000000', v_seller_uid, 'authenticated', 'authenticated',
-      'seller@virshipexpress.com', v_pass, now(), '', '',
+      'pinkysol07@gmail.com', v_pass, now(), '', '',
       '', '', '{"provider":"email","providers":["email"]}',
       '{"role":"Seller","full_name":"Amora, Daniella Sophia P."}',
       now(), now()
@@ -145,7 +145,7 @@ begin
   -- Update profiles for Sellers (linked to seller_id)
   insert into public.profiles (id, full_name, email, role, seller_id, is_active)
   select id, 'Amora, Daniella Sophia P.', email, 'Seller'::public.app_role, v_seller_record_id, true
-    from auth.users where email = 'seller@virshipexpress.com'
+    from auth.users where email = 'pinkysol07@gmail.com'
   on conflict (id) do update set
     role = 'Seller'::public.app_role,
     full_name = 'Amora, Daniella Sophia P.',
@@ -162,6 +162,6 @@ begin
     is_active = true;
 
   raise notice 'Airship Express mock accounts successfully created/updated:';
-  raise notice '  - Admin:  admin@virshipexpress.com  (pw: demo123456) -> /admin/dashboard';
-  raise notice '  - Seller: seller@virshipexpress.com (pw: demo123456) -> /seller/dashboard';
+  raise notice '  - Admin:  hazems120415@gmail.com (pw: demo123456) -> /admin/dashboard';
+  raise notice '  - Seller: pinkysol07@gmail.com (pw: demo123456) -> /seller/dashboard';
 end $$;
