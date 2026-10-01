@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendTransactionalEmail } from "@/lib/server/mailer";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import {
@@ -425,7 +427,97 @@ export async function verifySellerOtpAndRegister(
 // ---------------------------------------------------------------------------
 
 const RESET_GENERIC_MESSAGE =
-  "If this email is registered, a verification code has been sent. It expires in 10 minutes.";
+  "If this email is registered, a password reset link has been sent. Check your inbox and spam folder.";
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function passwordResetRedirectUrl(): Promise<string> {
+  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configuredSiteUrl) {
+    return new URL("/auth/reset-password", configuredSiteUrl).toString();
+  }
+
+  const requestHeaders = await headers();
+  const host =
+    requestHeaders.get("x-forwarded-host") ??
+    requestHeaders.get("host") ??
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+    process.env.VERCEL_URL;
+  if (!host) throw new Error("The application URL is not configured.");
+
+  const protocol =
+    requestHeaders.get("x-forwarded-proto") ??
+    (/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) ? "http" : "https");
+  const origin = host.startsWith("http") ? host : `${protocol}://${host}`;
+  return new URL("/auth/reset-password", origin).toString();
+}
+
+function resetPasswordEmail(actionLink: string, email: string) {
+  const safeEmail = escapeHtml(email);
+  const safeLink = escapeHtml(actionLink);
+  return {
+    subject: "Reset your Airship Express password",
+    text:
+      `We received a request to reset the password for ${email}.\n\n` +
+      `Open this link to choose a new password:\n${actionLink}\n\n` +
+      "If you did not request this, you can safely ignore this email.",
+    html:
+      `<p>We received a request to reset the password for <strong>${safeEmail}</strong>.</p>` +
+      `<p><a href="${safeLink}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#e81b75;color:#fff;text-decoration:none;font-weight:600;">Reset password</a></p>` +
+      `<p>This link is single-use. If you did not request this, you can safely ignore this email.</p>`,
+  };
+}
+
+/** Send a single-use Supabase recovery link through the app's SMTP mailer. */
+export async function requestPasswordResetLink(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const email = String(formData.get("email") ?? "");
+  try {
+    passwordResetRequestSchema.parse({ email });
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return { error: e.issues[0]?.message ?? "Validation failed" };
+    }
+  }
+  const normalized = email.trim().toLowerCase();
+
+  try {
+    const admin = createAdminClient();
+    const { data: account } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("email", normalized)
+      .maybeSingle();
+    if (account) {
+      const redirectTo = await passwordResetRedirectUrl();
+      const { data, error } = await admin.auth.admin.generateLink({
+        type: "recovery",
+        email: normalized,
+        options: { redirectTo },
+      });
+      if (error || !data?.properties?.action_link) {
+        throw new Error(error?.message ?? "Supabase did not return a recovery link.");
+      }
+
+      await sendTransactionalEmail({
+        to: normalized,
+        ...resetPasswordEmail(data.properties.action_link, normalized),
+      });
+    }
+  } catch (e) {
+    console.error("requestPasswordResetLink failed:", e);
+  }
+  return { message: RESET_GENERIC_MESSAGE };
+}
 
 /** Step 1: issue a password-reset OTP (silent when the email is unknown). */
 export async function requestPasswordResetOtp(

@@ -22,10 +22,11 @@ import {
 import {
   authenticate,
   verifyLoginOtp,
-  requestSellerOtp,
-  verifySellerOtpAndRegister,
+  requestPasswordResetLink,
   requestPasswordResetOtp,
   resetPasswordWithOtp,
+  requestSellerOtp,
+  verifySellerOtpAndRegister,
   type AuthState,
 } from "./actions";
 
@@ -282,16 +283,7 @@ function SignInForm({
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-0.5">
-          <label className="flex items-center gap-2 text-[13px] font-normal text-white/65 cursor-pointer select-none">
-            <input
-              suppressHydrationWarning
-              type="checkbox"
-              defaultChecked
-              className="rounded border-white/20 bg-white/10 text-[#E81B75] focus:ring-[#E81B75] w-3.5 h-3.5"
-            />
-            <span>Remember me</span>
-          </label>
+        <div className="flex items-center justify-end pt-0.5">
           <button
             suppressHydrationWarning
             type="button"
@@ -734,7 +726,7 @@ function SellerSignupForm({ styling, showPw, onTogglePw }: { styling: FormStylin
 // Forgot password (email → OTP → new strong password)
 // ---------------------------------------------------------------------------
 
-function ForgotPasswordForm({ styling, onBack }: { styling: FormStyling } & { onBack: () => void }) {
+function LegacyForgotPasswordForm({ styling, onBack }: { styling: FormStyling } & { onBack: () => void }) {
   const { inputCls, labelCls } = styling;
   const [email, setEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -902,6 +894,78 @@ function ForgotPasswordForm({ styling, onBack }: { styling: FormStyling } & { on
           </p>
         </form>
       )}
+    </div>
+  );
+}
+
+function ForgotPasswordForm({ styling, onBack }: { styling: FormStyling } & { onBack: () => void }) {
+  const { inputCls, labelCls } = styling;
+  const [email, setEmail] = useState("");
+  const [state, formAction, pending] = useActionState<AuthState, FormData>(
+    requestPasswordResetLink,
+    {},
+  );
+
+  return (
+    <div className="mt-5 space-y-4">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white/60 hover:text-white transition cursor-pointer"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" /> Back to sign in
+      </button>
+
+      <form action={formAction} className="space-y-3">
+        <div>
+          <label className={labelCls}>Registered email</label>
+          <div className="relative">
+            <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+            <input
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputCls}
+              placeholder="you@company.com"
+            />
+          </div>
+        </div>
+
+        {state.error && (
+          <div className="text-[13px] text-rose-100 bg-rose-500/15 border border-rose-300/25 rounded-xl p-3 flex items-start gap-2">
+            <ShieldAlert className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
+            <span>{state.error}</span>
+          </div>
+        )}
+        {state.message && (
+          <div className="text-[13px] text-emerald-100 bg-emerald-500/15 border border-emerald-300/25 rounded-xl p-3 flex items-start gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
+            <span>{state.message}</span>
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={pending}
+          className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-white/15 hover:bg-white/20 disabled:opacity-60 text-white text-sm font-semibold border border-white/20 transition cursor-pointer"
+        >
+          {pending ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" /> Sending link...
+            </>
+          ) : (
+            "Send reset password link"
+          )}
+        </button>
+      </form>
+
+      <p className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-[12px] leading-5 text-white/65">
+        Check Gmail and spam for the reset email. When you click the link,
+        the page for your new password and password confirmation will open.
+      </p>
     </div>
   );
 }
