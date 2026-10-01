@@ -42,7 +42,7 @@ export default function ConnectivityGuard() {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, []);
+  }, [toast]);
 
   if (online && pending === 0) return null;
 

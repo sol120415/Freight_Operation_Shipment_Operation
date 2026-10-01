@@ -105,11 +105,12 @@ export default function ParcelMap({
     return () => {
       cancelled = true;
       resizeObserver?.disconnect();
+      void channel?.unsubscribe();
       mapRef.current?.remove?.();
       mapRef.current = null;
       markerRef.current = null;
     };
-  }, [parcelId]);
+  }, [lat, lng, parcelId, trackingNumber]);
 
   return (
     <div className="relative">

@@ -13,7 +13,7 @@
  * outbox when connectivity returns (see src/lib/offline/outbox.ts).
  * ========================================================================== */
 
-const VERSION = "airship-v2";
+const VERSION = "airship-v3";
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 const TILE_CACHE = `${VERSION}-tiles`;
@@ -90,6 +90,13 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
+
+  // A production service worker can remain registered after switching back
+  // to `next dev`. Never intercept localhost requests: development chunk
+  // names are stable, so cached chunks can hide current source changes.
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+    return;
+  }
 
   // Never intercept Supabase/auth/API traffic — always live.
   if (

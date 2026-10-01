@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, X, Loader2 } from "lucide-react";
 import { PARCEL_STATUSES } from "@/lib/utils";
@@ -19,6 +19,21 @@ export default function ParcelFilters({ basePath }: { basePath: string }) {
   const q = searchParams.get("q") ?? "";
   const status = searchParams.get("status") ?? "";
 
+  // Keep the controlled input aligned when a parent link clears the URL
+  // (for example, the empty-state “Clear filters” link).
+  useEffect(() => {
+    setTerm(q);
+  }, [q]);
+
+  const push = useCallback((patch: Record<string, string | undefined>) => {
+    const qs = new URLSearchParams();
+    const merged = { q, status, ...patch };
+    for (const [k, v] of Object.entries(merged)) {
+      if (v && k !== "page") qs.set(k, v);
+    }
+    startTransition(() => router.replace(`${basePath}?${qs.toString()}`));
+  }, [basePath, q, router, startTransition, status]);
+
   // Debounced sync of the search box into the URL.
   useEffect(() => {
     const t = setTimeout(() => {
@@ -26,17 +41,7 @@ export default function ParcelFilters({ basePath }: { basePath: string }) {
       push({ q: term || undefined });
     }, 350);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term]);
-
-  function push(patch: Record<string, string | undefined>) {
-    const qs = new URLSearchParams();
-    const merged = { q, status, ...patch };
-    for (const [k, v] of Object.entries(merged)) {
-      if (v && k !== "page") qs.set(k, v);
-    }
-    startTransition(() => router.replace(`${basePath}?${qs.toString()}`));
-  }
+  }, [push, q, term]);
 
   const hasFilters = !!(q || status);
 
@@ -85,7 +90,7 @@ export default function ParcelFilters({ basePath }: { basePath: string }) {
         <button
           onClick={() => {
             setTerm("");
-            push({ q: undefined, status: undefined });
+            startTransition(() => router.replace(basePath));
           }}
           className="text-xs font-bold text-pink-600 dark:text-pink-400 hover:underline whitespace-nowrap"
         >

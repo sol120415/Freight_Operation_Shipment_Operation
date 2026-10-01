@@ -9,7 +9,7 @@ import { createClient, uniqueChannel } from "@/lib/supabase/client";
  * on the shipment_tracking_logs table.
  */
 export default function RealtimeIndicator() {
-  const [connected, setConnected] = useState(false);
+  const [status, setStatus] = useState<"connecting" | "active" | "offline">("connecting");
 
   useEffect(() => {
     const supabase = createClient();
@@ -21,7 +21,15 @@ export default function RealtimeIndicator() {
         () => {},
       )
       .subscribe((status) => {
-        setConnected(status === "SUBSCRIBED");
+        setStatus(
+          status === "SUBSCRIBED"
+            ? "active"
+            : status === "CHANNEL_ERROR" ||
+                status === "TIMED_OUT" ||
+                status === "CLOSED"
+              ? "offline"
+              : "connecting",
+        );
       });
 
     return () => {
@@ -35,19 +43,25 @@ export default function RealtimeIndicator() {
         <span className="text-slate-400 flex items-center gap-1.5">
           <Radio
             className={`w-3.5 h-3.5 ${
-              connected ? "text-emerald-400 animate-pulse" : "text-slate-600"
+              status === "active"
+                ? "text-emerald-400 animate-pulse"
+                : status === "connecting"
+                  ? "text-amber-400"
+                  : "text-slate-600"
             }`}
           />
           Supabase Realtime
         </span>
         <span
           className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-            connected
+            status === "active"
               ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-              : "bg-slate-800 text-slate-400"
+              : status === "connecting"
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                : "bg-slate-800 text-slate-400"
           }`}
         >
-          {connected ? "ACTIVE" : "OFFLINE"}
+          {status.toUpperCase()}
         </span>
       </div>
     </div>
