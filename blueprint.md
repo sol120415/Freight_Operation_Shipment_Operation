@@ -5,6 +5,9 @@ LEARNING FOR LOAD ALLOCATION TO REDUCE VEHICLE UNDERUTILIZATION AND IMPROVE DISP
 Capstone Project Blueprint: Comprehensive technical documentation covering Phases 1 through 4, system architecture,
 SDLC methodology, role-based access control, database schema design, external CRM API specs, and machine learning load
 optimization flow charts.
+
+Implementation note: this blueprint contains the original design roles (Dispatcher, Planner, Carrier, and Client). The
+implemented application uses SuperAdmin, Admin, Seller, Customer, and Citizen; see docs/RBAC.md for the current contract.
 1. SYSTEM METHODOLOGY (AGILE DEVELOPMENT SDLC)
 The system is developed using the Agile Scrum Methodology divided into 4 Core Phases to ensure iterative feature integration,
 database integrity, and continuous testing.
@@ -46,13 +49,15 @@ DevOps /
 Hosting Vercel, GitHub, Supabase Cloud Automated CI/CD deployment pipelines and cloud database hosting.
 Own Shipments * System Config * BoL Generation * Capacity Rules * Online Booking * Realtime Logs * Live
 Tracking * Bin-Packing * Track Status
-Admin ( full_access ): Global administrative access, full configuration controls, system analytics dashboard, and raw realtime
-log streaming.
-Dispatcher ( operations ): Manages LCL/FCL consolidation, generates House/Master Bills of Lading, executes 3PL partner
-handover tags, and updates live tracking status.
-Planner ( ml_drafts ): Runs Machine Learning load allocation algorithms to generate capacity optimization drafts.
-Carrier ( assigned_loads ): Direct rider and external carrier view for posting real-time location/status updates.
-Client ( own_shipments ): Client booking portal to submit requests, track orders live, and download Airship Waybill PDFs.
+SuperAdmin ( full_access + user_management ): Full system access and role management.
+Admin ( operations ): Global administrative access, pickup/intake, parcel operations, manifests, handover, waybills,
+reports, analytics, settings, audit, and raw realtime log streaming.
+Seller ( own_shipments ): Business sender that registers parcels and views its own shipment data.
+Customer ( own_shipments ): Recipient portal for assigned parcel tracking.
+Citizen ( public_portal ): Public/citizen portal with the same own-shipment data tier as Customer.
+
+The original design used Dispatcher, Planner, Carrier, and Client as separate roles. Those roles are retained here as
+historical requirements only; the implemented application consolidates them into the canonical roles above.
 4. END-TO-END SYSTEM PROCESS FLOW CHART
 +-----------------------------------------------------------------------------------+ | ONLINE BOOKING &
 EXECUTION FLOW | +-----------------------------------------------------------------------------------+ [

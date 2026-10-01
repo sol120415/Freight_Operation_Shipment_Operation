@@ -17,13 +17,13 @@ tracking multimodal freight — built on **Next.js (App Router)**, **Supabase
 4. [Prerequisites](#prerequisites)
 5. [Setup](#setup)
 6. [Environment variables](#environment-variables)
-7. [Production email (OTP via Resend)](#production-email-otp-via-resend)
-7. [Database schema & RBAC](#database-schema--rbac)
-8. [Running the app](#running-the-app)
-9. [Roles & permissions](#roles--permissions)
-10. [AI features](#ai-features)
-11. [Project structure](#project-structure)
-12. [Windows / PowerShell note](#windows--powershell-note)
+7. [Email OTP via SMTP](#email-otp-via-smtp)
+8. [Database schema & RBAC](#database-schema--rbac)
+9. [Running the app](#running-the-app)
+10. [Roles & permissions](#roles--permissions)
+11. [AI features](#ai-features)
+12. [Project structure](#project-structure)
+13. [Windows / PowerShell note](#windows--powershell-note)
 
 ---
 
@@ -131,8 +131,13 @@ issues a hashed, single-use 6-digit code (10-minute expiry, 5 attempts);
 `verifySellerOtpAndRegister` verifies it, then creates the auth user (role
 forced to `Seller`), the `sellers` business record, and the linked `profiles`
 row. `requireProfile()` (`src/lib/auth.ts`) gates every page by
-`profiles.role`. Delivery uses Resend in production and the server terminal in
-local dev — see [Production email (OTP via Resend)](#production-email-otp-via-resend).
+`profiles.role`. Delivery uses SMTP through Nodemailer when configured, and the
+server terminal in local dev otherwise — see [Email OTP via SMTP](#email-otp-via-smtp).
+
+**Sign In (password + email OTP):** `requestLoginOtp` checks the password without
+persisting an authenticated session, then sends a login code. `verifyLoginOtp`
+checks the code and password before creating the Supabase session and applying
+the role-based dashboard redirect.
 
 **Forgot Password (OTP):** `requestPasswordResetOtp` → code →
 `resetPasswordWithOtp` sets a new strong password. Request messages are
@@ -144,8 +149,8 @@ Seller (linked to `sellers` `SELL-DEMO-0001`), and Customer accounts on
 
 | Role | Email | Name |
 |------|-------|------|
-| Admin | `admin@virshipexpress.com` / `admin@freightos.demo` | Admin Sol, Emmanuel M. / Sol, Emmanuel M. |
-| Seller | `seller@virshipexpress.com` / `seller@freightos.demo` | Amora, Daniella Sophia P. |
+| Admin | `hazems120415@gmail.com` / `admin@freightos.demo` | Admin Sol, Emmanuel M. / Sol, Emmanuel M. |
+| Seller | `pinkysol07@gmail.com` / `seller@freightos.demo` | Amora, Daniella Sophia P. |
 | Customer | `customer@freightos.demo` | Reyes, Miguel A. |
 
 Sign into these with the normal Sign In form (see the seed file for the local
@@ -171,48 +176,48 @@ Copy `.env.local.example` to `.env.local` and set:
 | `GEMINI_API_KEY`                | ⭘        | Fallback AI provider if Groq is not set            |
 | `GROQ_MODEL`                    | ⭘        | Override (default `llama-3.3-70b-versatile`)        |
 | `GEMINI_MODEL`                  | ⭘        | Override (default `gemini-2.0-flash`)              |
-| `RESEND_API_KEY`                | Prod ⭘   | Resend API key — Seller Registration + Forgot Password OTP (server-only, never `NEXT_PUBLIC_`) |
+| `SMTP_HOST`                     | Prod ⭘   | SMTP server hostname (server-only)                 |
+| `SMTP_PORT`                     | Prod ⭘   | SMTP port (usually 587 or 465)                     |
+| `SMTP_SECURE`                   | Prod ⭘   | `false` for 587/STARTTLS; `true` for 465/TLS       |
+| `SMTP_USER`                     | Prod ⭘   | SMTP username (server-only)                        |
+| `SMTP_PASS`                     | Prod ⭘   | SMTP password/token (server-only)                  |
 | `OTP_FROM_EMAIL`                | Prod ⭘   | Verified sender address, e.g. `noreply@yourdomain.com` (server-only) |
 | `OTP_FROM_NAME`                 | ⭘        | Sender display name (default `Airship Express`)    |
 
 > `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS — keep it server-side only, never expose it
 > to the client. AI features are optional: with no key set, AI buttons report that no
 > provider is configured and the rest of the app works normally.
-> OTP email works without configuration in local dev (codes print to the server
-> terminal), but production REQUIRES `RESEND_API_KEY` + `OTP_FROM_EMAIL` — see
-> [Production email (OTP via Resend)](#production-email-otp-via-resend).
+> OTP email works without SMTP configuration in local dev (codes print to the
+> server terminal), but production requires SMTP settings plus `OTP_FROM_EMAIL` —
+> see [Email OTP via SMTP](#email-otp-via-smtp).
 
 ---
 
-## Production email (OTP via Resend)
+## Email OTP via SMTP
 
-Seller Registration and Forgot Password both verify the seller's inbox with a
-6-digit OTP (10-minute expiry, 5 attempts, 60-second resend cooldown, SHA-256
-hashed storage). Delivery is implemented once in `sendOtpEmail()`
-(`src/lib/otp.ts`, server-side only) via the Resend API — no new dependency,
-plain `fetch`.
+Sign In, Seller Registration, and Forgot Password use 6-digit email OTPs
+(10-minute expiry, 5 attempts, 60-second resend cooldown, SHA-256 hashed
+storage). `sendOtpEmail()` in `src/lib/otp.ts` delivers through the server-only
+Nodemailer transporter in `src/lib/server/mailer.ts`.
 
-1. **Create / configure the provider.** Sign up at https://resend.com and create
-   an API key (API Keys → Create API Key). No code changes needed.
-2. **Verify the sender/domain.** In Resend go to Domains → Add Domain and follow
-   the DNS steps, then use e.g. `noreply@yourdomain.com` as `OTP_FROM_EMAIL`.
-   For a quick smoke test you may use Resend's sandbox sender
-   `onboarding@resend.dev`, but it can only email the Resend account owner —
-   a verified domain is required for real sellers.
-3. **Add the environment variables** (server-side only, never commit secrets):
-   `RESEND_API_KEY=`, `OTP_FROM_EMAIL=`, optionally `OTP_FROM_NAME=`.
-   See `.env.cloud.example`. Never use a `NEXT_PUBLIC_` variable for the key.
-4. **Restart / redeploy** the Next.js app so the new env vars load
-   (`npm run env:cloud` copies them into `.env.local` when switching).
-5. **Test Seller Registration OTP:** open Register → fill the seller form →
-   Send verification code → check the inbox → wrong code shows attempts left →
-   correct code creates the account and signs the seller in. If Resend fails,
-   no account is created and a safe error is shown (the unsent code is
-   invalidated server-side).
-6. **Test Forgot Password OTP:** fail sign-in 3 times → Forgot Password →
-   enter the registered email → enter the code → set a strong new password →
-   sign in with it. The message shown is identical whether or not the email
-   exists, so accounts cannot be enumerated.
+1. **Install Nodemailer.** Run `npm install nodemailer` (Node.js 20 or newer).
+2. **Get SMTP credentials** from your mail provider and verify the sender domain.
+   Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`,
+   `OTP_FROM_EMAIL`, and optionally `OTP_FROM_NAME` in `.env.local` for local
+   development (or `.env.cloud` if you switch to your cloud Supabase project).
+   Set the same server-side variables in the production host.
+   Never use `NEXT_PUBLIC_` for mail credentials or commit real secrets.
+3. **Choose the matching connection settings.** Port 587 normally uses
+   STARTTLS (`SMTP_SECURE=false`); port 465 uses TLS (`SMTP_SECURE=true`).
+   The examples in `.env.local.example`, `.env.localhost.example`, and
+   `.env.cloud.example` show the variable names.
+4. **Apply the database migration** that adds the `login` OTP purpose using
+   `npm run db:push` for a linked database or `npm run db:reset` for local.
+5. **Test login OTP:** sign in with a valid password, check the inbox, then enter
+   the code and password again. A valid password alone must not create a session.
+6. **Test the existing flows:** Register a seller and request a password reset.
+   Both should now send through SMTP too. Incorrect codes show remaining
+   attempts; delivery failures invalidate the unsent code.
 
 ---
 
@@ -256,11 +261,13 @@ update these types to keep the typed Supabase client accurate.
 
 | Role | Sees | Can do |
 |------|------|--------|
-| **Admin** | Everything — Hub KPIs, pickup/manifest/handover, parcels, sellers, customers, tracking, waybill | Full ops: intake → manifest → handover, approve load plans, manage users/sellers (`src/lib/auth.ts:28` `isStaff`) |
-| **Seller** | Own parcels only (`src/app/(app)/dashboard/page.tsx:31` `SellerDashboard`), pickup scheduling (`src/app/(app)/pickup`), parcel create | Send parcels, schedule pickups, view own shipments (linked via `profiles.seller_id` → `sellers`) |
-| **Customer** | Assigned parcels only (`src/app/(app)/dashboard/page.tsx:37` `CustomerDashboard`), live tracking of own deliveries | Register self via `/login` → becomes `Customer` (`src/app/login/actions.ts:19`), read-only tracking |
+| **SuperAdmin** | Everything Admin can access, plus user and role management | Full system access; provisioned by an administrator and never self-registers |
+| **Admin** | Everything — Hub KPIs, pickup/manifest/handover, parcels, sellers, customers, tracking, waybill | Full operations: intake → manifest → handover, reports, settings, audit, and seller management |
+| **Seller** | Own parcels and seller dashboard | Register parcels and view own shipments; seller pickup scheduling is not an Admin Pickup & Intake function |
+| **Customer** | Assigned parcels only (`src/app/(app)/dashboard/page.tsx:37` `CustomerDashboard`) | Provisioned by an administrator; read-only tracking |
+| **Citizen** | Public/citizen portal data tier | Same own-shipment visibility as Customer |
 
-Self-registration is `Customer`-only; `Seller`/`Admin` must be provisioned (seed `supabase/seed.sql:13` or `admin.auth.admin.createUser` + `profiles` upsert). Navigation is filtered by role (`src/lib/nav.ts`) and RLS (`current_role()` `supabase/migrations/0001:252`) enforces the same at DB level.
+Self-registration creates `Seller` accounts only. `Customer`, `Admin`, and `SuperAdmin` accounts must be provisioned by an administrator (seed `supabase/seed.sql` or use `admin.auth.admin.createUser` plus a `profiles` upsert). `Dispatcher`, `Planner`, `Carrier`, and `Client` are historical blueprint roles and are not active application roles. Navigation is filtered by role (`src/lib/nav.ts`) and RLS (`current_role()` `supabase/migrations/0001:252`) enforces the same at DB level.
 
 ---
 
