@@ -1598,6 +1598,11 @@ alter table public.shipments
   add column if not exists shipping_fee           numeric(12,2),
   add column if not exists recipient_phone        text,
   add column if not exists expected_delivery_date date,
+  add column if not exists delivery_method        text check (delivery_method in ('Pickup', 'Drop-off')),
+  add column if not exists received_at            timestamptz,
+  add column if not exists booked_at              timestamptz,
+  add column if not exists manifested_at          timestamptz,
+  add column if not exists handover_at            timestamptz,
   add column if not exists current_hub_id         uuid references public.hubs (id) on delete set null;
 
 create index if not exists shipments_seller_created_idx
@@ -2485,7 +2490,7 @@ declare
 begin
   -- ---- demo users (idempotent: skip if already registered). Emails and names
   --      match the one-click Quick Login accounts on the sign-in page. ----
-  if not exists (select 1 from auth.users where email = 'admin@virshipexpress.com') then
+  if not exists (select 1 from auth.users where email = 'hazems120415@gmail.com') then
     insert into auth.users
       (instance_id, id, aud, role, email, encrypted_password,
        email_confirmed_at, confirmation_token, recovery_token,
@@ -2493,7 +2498,7 @@ begin
        created_at, updated_at)
     values
       ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
-       'admin@virshipexpress.com', v_pass, now(), '', '', '', '',
+       'hazems120415@gmail.com', v_pass, now(), '', '', '', '',
        '{"provider":"email","providers":["email"]}',
        '{"role":"Admin","full_name":"Admin Sol, Emmanuel M."}',
        now(), now());
@@ -2541,7 +2546,7 @@ begin
        now(), now());
   end if;
 
-  if not exists (select 1 from auth.users where email = 'seller@virshipexpress.com') then
+  if not exists (select 1 from auth.users where email = 'pinkysol07@gmail.com') then
     insert into auth.users
       (instance_id, id, aud, role, email, encrypted_password,
        email_confirmed_at, confirmation_token, recovery_token,
@@ -2549,7 +2554,7 @@ begin
        created_at, updated_at)
     values
       ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
-       'seller@virshipexpress.com', v_pass, now(), '', '', '', '',
+       'pinkysol07@gmail.com', v_pass, now(), '', '', '', '',
        '{"provider":"email","providers":["email"]}',
        '{"role":"Seller","full_name":"Amora, Daniella Sophia P."}',
        now(), now());
@@ -2565,7 +2570,7 @@ begin
 
   insert into public.profiles (id, full_name, email, role, org_name)
   select id, 'Admin Sol, Emmanuel M.', email, 'Admin', 'Airship Express Ops'
-    from auth.users where email = 'admin@virshipexpress.com'
+    from auth.users where email = 'hazems120415@gmail.com'
   on conflict (id) do update set role = 'Admin', full_name = 'Admin Sol, Emmanuel M.';
 
   insert into public.profiles (id, full_name, email, role, org_name)
@@ -2588,19 +2593,19 @@ begin
     seller_id = (select s.id from public.sellers s where s.reference = 'SELL-DEMO-0001');
 
   insert into public.sellers (reference, name, email, pickup_frequency)
-  values ('SELL-DEMO-0001', 'Amora, Daniella Sophia P.', 'seller@virshipexpress.com', 'Daily')
+  values ('SELL-DEMO-0001', 'Amora, Daniella Sophia P.', 'pinkysol07@gmail.com', 'Daily')
   on conflict (reference) do nothing;
 
   insert into public.profiles (id, full_name, email, role, seller_id)
   select u.id, 'Amora, Daniella Sophia P.', u.email, 'Seller',
          (select s.id from public.sellers s where s.reference = 'SELL-DEMO-0001')
-    from auth.users u where u.email = 'seller@virshipexpress.com'
+    from auth.users u where u.email = 'pinkysol07@gmail.com'
   on conflict (id) do update set
     role = 'Seller',
     full_name = 'Amora, Daniella Sophia P.',
     seller_id = (select s.id from public.sellers s where s.reference = 'SELL-DEMO-0001');
 
-  raise notice 'Demo seed complete: {admin,seller,customer}@freightos.demo, {admin,seller}@virshipexpress.com, shared password demo123456';
+  raise notice 'Demo seed complete: Admin hazems120415@gmail.com, Seller pinkysol07@gmail.com, Customer customer@freightos.demo; shared password demo123456';
 end $$;
 
 

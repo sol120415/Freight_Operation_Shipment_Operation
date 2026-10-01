@@ -10,7 +10,7 @@ import HandoverHistory from "./HandoverHistory";
 export const dynamic = "force-dynamic";
 
 export default async function HandoverPage() {
-  await requireRole(["Admin"]);
+  await requireRole(["SuperAdmin", "Admin"]);
   const [readyBatches, handovers] = await Promise.all([
     listReadyBatches(),
     listHandovers(50),

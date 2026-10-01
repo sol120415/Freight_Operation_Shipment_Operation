@@ -6,9 +6,10 @@ import type { PickupRequest, PickupRequestWithSeller, PickupStatus } from "@/typ
 export const listPickups = cache(
   async (opts: { status?: PickupStatus } = {}): Promise<PickupRequestWithSeller[]> => {
     const supabase = await createClient();
-    let query = supabase.from("pickup_requests").select("*, seller:id(id, name, phone)");
+    let query = supabase.from("pickup_requests").select("*, seller:sellers(id, name, phone)");
     if (opts.status) query = query.eq("status", opts.status as PickupStatus);
-    const { data } = await query.order("scheduled_at", { ascending: false });
+    const { data, error } = await query.order("scheduled_at", { ascending: false });
+    if (error) throw new Error(`Could not load pickup requests: ${error.message}`);
     return (data ?? []) as unknown as PickupRequestWithSeller[];
   },
 );

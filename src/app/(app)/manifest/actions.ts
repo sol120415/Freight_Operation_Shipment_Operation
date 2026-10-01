@@ -22,7 +22,7 @@ export async function createBatch(
   input: unknown,
 ): Promise<ActionResult<{ id: string; reference: string }>> {
   return runAction("manifest.createBatch", batchCreateSchema, input, async (form) => {
-    const profile = await requireRole(["Admin"]);
+    const profile = await requireRole(["SuperAdmin", "Admin"]);
     const supabase = await createClient();
 
     const { data: parcels, error: parcelsError } = await supabase
@@ -112,7 +112,7 @@ export async function markBatchReady(
     batchReadySchema,
     { batchId },
     async ({ batchId: id }) => {
-      await requireRole(["Admin"]);
+      await requireRole(["SuperAdmin", "Admin"]);
       const supabase = await createClient();
       const { data, error } = await supabase
         .from("carrier_batches")
@@ -137,7 +137,7 @@ export async function releaseBatch(batchId: string): Promise<ActionResult> {
     batchReadySchema,
     { batchId },
     async ({ batchId: id }) => {
-      await requireRole(["Admin"]);
+      await requireRole(["SuperAdmin", "Admin"]);
       const supabase = await createClient();
 
       const { data: batch } = await supabase

@@ -73,6 +73,7 @@ export default function BookingForm() {
           <label className={label}>Seller / client name *</label>
           <input
             className={field}
+            required
             value={form.clientName}
             onChange={(e) => set("clientName", e.target.value)}
             placeholder="Jollibee Foods Logistics"
@@ -96,6 +97,7 @@ export default function BookingForm() {
           <label className={label}>Recipient / consignee *</label>
           <input
             className={field}
+            required
             value={form.consignee}
             onChange={(e) => set("consignee", e.target.value)}
             placeholder="Juan Dela Cruz"
@@ -105,6 +107,7 @@ export default function BookingForm() {
           <label className={label}>Destination area *</label>
           <input
             className={field}
+            required
             value={form.destination}
             onChange={(e) => set("destination", e.target.value)}
             placeholder="Quezon City, NCR"

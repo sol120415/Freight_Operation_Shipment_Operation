@@ -21,7 +21,7 @@ export async function signHandover(
   input: unknown,
 ): Promise<ActionResult<{ batchId: string }>> {
   return runAction("handover.signHandover", handoverSchema, input, async (form) => {
-    const profile = await requireRole(["Admin"]);
+    const profile = await requireRole(["SuperAdmin", "Admin"]);
     if (!canFinalizeHandover(profile.role)) {
       return fail("Only staff may finalize a handover");
     }

@@ -13,7 +13,7 @@ export default async function BookingPage({
 }: {
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  await requireRole(["Admin"]);
+  await requireRole(["SuperAdmin", "Admin"]);
   const { q, status } = await searchParams;
   const { rows } = await listShipments({
     q,

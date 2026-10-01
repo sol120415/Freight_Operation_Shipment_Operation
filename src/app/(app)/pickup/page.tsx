@@ -13,7 +13,7 @@ import QuickIntake from "./QuickIntake";
 export const dynamic = "force-dynamic";
 
 export default async function PickupPage() {
-  await requireRole(["Admin"]);
+  await requireRole(["SuperAdmin", "Admin"]);
   const [sellers, pickups, { rows: intakenToday }] = await Promise.all([
     listSellers(),
     listPickups(),

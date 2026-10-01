@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parcelCreateSchema,
+  bookingSchema,
   signUpSchema,
   passwordResetConfirmSchema,
 } from "@/lib/validation/schemas";
@@ -37,8 +38,33 @@ describe("parcel registration delivery method", () => {
     expect(bad.success).toBe(false);
   });
 
+  it("rejects invalid or past expected delivery dates", () => {
+    expect(
+      parcelCreateSchema.safeParse({ ...parcelBase, expectedDeliveryDate: "2020-01-01" }).success,
+    ).toBe(false);
+    expect(
+      parcelCreateSchema.safeParse({ ...parcelBase, expectedDeliveryDate: "2026-02-31" }).success,
+    ).toBe(false);
+  });
+
   it("exposes exactly the two allowed methods", () => {
     expect(DELIVERY_METHODS).toEqual(["Pickup", "Drop-off"]);
+  });
+});
+
+describe("booking form/server contract", () => {
+  it("accepts the fields the booking form actually submits", () => {
+    const result = bookingSchema.safeParse({
+      clientName: "TEST Seller Alpha",
+      consignee: "TEST Recipient 001",
+      platform: "J&T Express",
+      destination: "Quezon City",
+      weightKg: 0,
+      codAmount: 0,
+      serviceType: "Standard",
+      trackingNumber: "",
+    });
+    expect(result.success).toBe(true);
   });
 });
 

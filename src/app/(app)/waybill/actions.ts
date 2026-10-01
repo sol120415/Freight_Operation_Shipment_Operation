@@ -13,7 +13,7 @@ export async function createBillOfLading(
   input: BolInput,
 ): Promise<ActionResult<{ id: string }>> {
   return runAction("waybill.createBillOfLading", bolSchema, input, async (form) => {
-    const profile = await requireRole(["Admin"]);
+    const profile = await requireRole(["SuperAdmin", "Admin"]);
     const supabase = await createClient();
 
     const { data, error } = await supabase

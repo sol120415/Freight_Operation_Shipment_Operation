@@ -13,7 +13,7 @@ import BolGenerator from "./BolGenerator";
 export const dynamic = "force-dynamic";
 
 export default async function WaybillPage() {
-  const profile = await requireRole(["Admin"]);
+  const profile = await requireRole(["SuperAdmin", "Admin"]);
 
   const [shipments, bolList] = await Promise.all([
     listShipmentsForBol(),

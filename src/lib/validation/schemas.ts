@@ -18,7 +18,6 @@ export const bookingSchema = z.object({
   platform: z.enum(DELIVERY_PLATFORMS, {
     message: "Delivery platform is required",
   }),
-  origin: z.string().trim().min(1, "Branch Hub is the pickup origin").max(200),
   destination: z.string().trim().min(2, "Destination area is required").max(200),
   weightKg: positiveNumber("Weight must be >= 0"),
   codAmount: positiveNumber("COD amount must be >= 0"),
@@ -154,6 +153,28 @@ export function firstZodError(error: z.ZodError): string {
 
 /** ----- Parcel management & tracking ----- */
 
+const expectedDeliveryDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return (
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
+    );
+  }, "Use a valid calendar date");
+
+function todayInManila(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 /** Register a new parcel (Seller creates own; staff may pick any seller). */
 export const parcelCreateSchema = z.object({
   sellerId: z.string().uuid().optional().nullable(),
@@ -173,12 +194,16 @@ export const parcelCreateSchema = z.object({
   weightKg: positiveNumber("Weight must be >= 0").default(0),
   shippingFee: positiveNumber("Shipping fee must be >= 0").default(0),
   codAmount: positiveNumber("COD amount must be >= 0").default(0),
-  expectedDeliveryDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
-    .optional()
-    .or(z.literal(""))
-    .default(""),
+  expectedDeliveryDate: expectedDeliveryDateSchema.optional().or(z.literal("")).default(""),
+}).superRefine((value, ctx) => {
+  if (!value.expectedDeliveryDate) return;
+  if (value.expectedDeliveryDate < todayInManila()) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["expectedDeliveryDate"],
+      message: "Expected delivery date cannot be in the past",
+    });
+  }
 });
 export type ParcelCreateInput = z.infer<typeof parcelCreateSchema>;
 

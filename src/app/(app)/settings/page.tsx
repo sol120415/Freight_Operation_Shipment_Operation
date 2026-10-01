@@ -25,7 +25,7 @@ export default async function SettingsPage() {
           <Setting label="Application" value="Airship Express — Freight Operations & Shipment Execution v3.1" />
           <Setting label="Database" value="Supabase PostgreSQL (Row Level Security enforced)" />
           <Setting label="Authentication" value="Supabase Auth (email + password, bcrypt-hashed)" />
-          <Setting label="Roles" value="ADMIN · SELLER · CUSTOMER (+ legacy ops roles)" />
+          <Setting label="Roles" value="SUPERADMIN · ADMIN · SELLER · CUSTOMER · CITIZEN" />
           <Setting label="Tracking scheme" value="Facility/event-based tracking (PKG-YYYY-NNNNNN)" />
           <Setting label="Notifications" value="In-app notifications generated on every parcel event" />
           <Setting label="Audit logging" value="Enabled (sellers, shipments, profiles, hubs)" />

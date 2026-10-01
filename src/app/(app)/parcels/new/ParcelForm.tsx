@@ -6,6 +6,13 @@ import Link from "next/link";
 import { Loader2, PackagePlus, CheckCircle2 } from "lucide-react";
 import { DELIVERY_PLATFORMS } from "@/lib/utils";
 import { createParcel } from "../actions";
+
+const todayInManila = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Manila",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
 import type { Seller } from "@/types";
 import { useToast } from "@/components/ui/Toast";
 
@@ -241,6 +248,7 @@ export default function ParcelForm({
             id="expectedDeliveryDate"
             name="expectedDeliveryDate"
             type="date"
+            min={todayInManila}
             className={inputCls}
           />
         </div>

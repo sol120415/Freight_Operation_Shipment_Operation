@@ -10,7 +10,7 @@ import BatchCards from "./BatchCards";
 export const dynamic = "force-dynamic";
 
 export default async function ManifestPage() {
-  await requireRole(["Admin"]);
+  await requireRole(["SuperAdmin", "Admin"]);
   const [intakeParcels, batches] = await Promise.all([
     listShipments({ status: "Intake", perPage: 100 }),
     listBatchesWithItems(50),
