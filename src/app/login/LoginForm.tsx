@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useActionState, useEffect } from "react";
+import { useState, useActionState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Loader2,
   Mail,
@@ -16,9 +17,11 @@ import {
   ShieldAlert,
   ShieldCheck,
   KeyRound,
+  X,
 } from "lucide-react";
 import {
   authenticate,
+  verifyLoginOtp,
   requestSellerOtp,
   verifySellerOtpAndRegister,
   requestPasswordResetOtp,
@@ -30,6 +33,9 @@ type Mode = "signin" | "signup" | "forgot";
 
 const FAIL_KEY = "ax-login-fails";
 const MAX_FAILS_BEFORE_HINT = 3;
+const LOGIN_OTP_RESEND_SECONDS = 60;
+// Form-filling browser extensions can add attributes such as `fdprocessedid`
+// before hydration. Suppress that external mismatch on the initial controls.
 // Security note: this counter is UI-ONLY (reveals the Forgot Password
 // prompt after 3 failed attempts). localStorage is not a security boundary —
 // it can be cleared — so actual brute-force protection comes server-side
@@ -65,9 +71,18 @@ function PasswordChecklist({ password }: { password: string }) {
   );
 }
 
-function SubmitButton({ label, pending }: { label: string; pending: boolean }) {
+function SubmitButton({
+  label,
+  pending,
+  pendingLabel = "Authenticating...",
+}: {
+  label: string;
+  pending: boolean;
+  pendingLabel?: string;
+}) {
   return (
     <button
+      suppressHydrationWarning
       type="submit"
       disabled={pending}
       className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-[#E81B75] hover:bg-[#CB1664] disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold shadow-lg shadow-pink-950/30 transition-colors cursor-pointer select-none"
@@ -75,7 +90,7 @@ function SubmitButton({ label, pending }: { label: string; pending: boolean }) {
       {pending ? (
         <>
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Authenticating...</span>
+          <span>{pendingLabel}</span>
         </>
       ) : (
         <>
@@ -127,7 +142,21 @@ function SignInForm({
 }) {
   const { inputCls, labelCls } = styling;
   const [state, formAction, pending] = useActionState<AuthState, FormData>(authenticate, {});
+  const [verifyState, verifyAction, verifyPending] = useActionState<AuthState, FormData>(verifyLoginOtp, {});
+  const [resendState, resendAction, resendPending] = useActionState<AuthState, FormData>(authenticate, {});
+  const [step, setStep] = useState<"credentials" | "otp">("credentials");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [resendSeconds, setResendSeconds] = useState(0);
+  const [portalReady, setPortalReady] = useState(false);
   const [fails, setFails] = useState(0);
+  const [otpToken, setOtpToken] = useState("");
+  const verifyFormRef = useRef<HTMLFormElement>(null);
+  const submittedOtpRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     try {
@@ -137,9 +166,9 @@ function SignInForm({
     }
   }, []);
 
-  const lastError = state.error;
   useEffect(() => {
-    if (!lastError) return;
+    const error = state.error;
+    if (!error) return;
     setFails((prev) => {
       const next = prev + 1;
       try {
@@ -149,89 +178,238 @@ function SignInForm({
       }
       return next;
     });
-  }, [lastError]);
+  }, [state.error]);
+
+  useEffect(() => {
+    if (state.message) {
+      setStep("otp");
+      setResendSeconds(LOGIN_OTP_RESEND_SECONDS);
+    }
+  }, [state]);
+
+  useEffect(() => {
+    if (step !== "otp" || resendSeconds <= 0) return;
+    const timer = window.setTimeout(() => {
+      setResendSeconds((remaining) => Math.max(0, remaining - 1));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [step, resendSeconds]);
+
+  useEffect(() => {
+    if (otpToken.length < 6) {
+      submittedOtpRef.current = null;
+      return;
+    }
+    if (verifyPending || submittedOtpRef.current === otpToken) return;
+
+    submittedOtpRef.current = otpToken;
+    verifyFormRef.current?.requestSubmit();
+  }, [otpToken, verifyPending]);
+
+  useEffect(() => {
+    if (step !== "otp") return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setStep("credentials");
+        setPassword("");
+        setResendSeconds(0);
+        setOtpToken("");
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [step]);
+
+  function closeOtpModal() {
+    setStep("credentials");
+    setPassword("");
+    setResendSeconds(0);
+    setOtpToken("");
+  }
 
   return (
-    <form action={formAction} className="mt-5 space-y-4">
-      <div>
-        <label className={labelCls}>Email</label>
-        <div className="relative">
-          <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
-          <input
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            className={inputCls}
-            placeholder="you@company.com"
-          />
+    <>
+      <form action={formAction} className="mt-5 space-y-4">
+        <div>
+          <label className={labelCls}>Email</label>
+          <div className="relative">
+            <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+            <input
+              suppressHydrationWarning
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className={inputCls}
+              placeholder="you@company.com"
+            />
+          </div>
         </div>
-      </div>
 
-      <div>
-        <label className={labelCls}>Password</label>
-        <div className="relative">
-          <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
-          <input
-            name="password"
-            type={showPw ? "text" : "password"}
-            required
-            autoComplete="current-password"
-            className={`${inputCls} pr-10`}
-            placeholder="••••••••"
-          />
+        <div>
+          <label className={labelCls}>Password</label>
+          <div className="relative">
+            <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+            <input
+              suppressHydrationWarning
+              name="password"
+              type={showPw ? "text" : "password"}
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className={`${inputCls} pr-10`}
+              placeholder="••••••••"
+            />
+            <button
+              suppressHydrationWarning
+              type="button"
+              onClick={onTogglePw}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-white/40 hover:text-white transition cursor-pointer"
+              aria-label={showPw ? "Hide password" : "Show password"}
+            >
+              {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-0.5">
+          <label className="flex items-center gap-2 text-[13px] font-normal text-white/65 cursor-pointer select-none">
+            <input
+              suppressHydrationWarning
+              type="checkbox"
+              defaultChecked
+              className="rounded border-white/20 bg-white/10 text-[#E81B75] focus:ring-[#E81B75] w-3.5 h-3.5"
+            />
+            <span>Remember me</span>
+          </label>
           <button
+            suppressHydrationWarning
             type="button"
-            onClick={onTogglePw}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-white/40 hover:text-white transition cursor-pointer"
-            aria-label={showPw ? "Hide password" : "Show password"}
+            onClick={onForgot}
+            className="text-[13px] font-semibold text-pink-300 hover:text-pink-200 hover:underline transition cursor-pointer"
           >
-            {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            Forgot Password?
           </button>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between pt-0.5">
-        <label className="flex items-center gap-2 text-[13px] font-normal text-white/65 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            defaultChecked
-            className="rounded border-white/20 bg-white/10 text-[#E81B75] focus:ring-[#E81B75] w-3.5 h-3.5"
-          />
-          <span>Remember me</span>
-        </label>
-        <button
-          type="button"
-          onClick={onForgot}
-          className="text-[13px] font-semibold text-pink-300 hover:text-pink-200 hover:underline transition cursor-pointer"
-        >
-          Forgot Password?
-        </button>
-      </div>
+        {step !== "otp" && <StateAlert state={state} />}
 
-      <StateAlert state={state} />
+        {fails >= MAX_FAILS_BEFORE_HINT && (
+          <div className="rounded-xl border border-amber-300/40 bg-amber-500/15 p-3 flex items-start gap-2">
+            <KeyRound className="w-4 h-4 text-amber-200 shrink-0 mt-0.5" />
+            <p className="text-[13px] text-amber-100">
+              Forgot your password?{" "}
+              <button
+                type="button"
+                onClick={onForgot}
+                className="font-bold underline hover:text-white transition cursor-pointer"
+              >
+                Reset it here
+              </button>{" "}
+              with a code sent to your email.
+            </p>
+          </div>
+        )}
 
-      {fails >= MAX_FAILS_BEFORE_HINT && (
-        <div className="rounded-xl border border-amber-300/40 bg-amber-500/15 p-3 flex items-start gap-2">
-          <KeyRound className="w-4 h-4 text-amber-200 shrink-0 mt-0.5" />
-          <p className="text-[13px] text-amber-100">
-            Forgot your password?{" "}
-            <button
-              type="button"
-              onClick={onForgot}
-              className="font-bold underline hover:text-white transition cursor-pointer"
-            >
-              Reset it here
-            </button>{" "}
-            with a code sent to your email.
-          </p>
+        <div className="pt-1">
+          <SubmitButton label="Continue" pending={pending} pendingLabel="Sending code..." />
         </div>
-      )}
+      </form>
+      {step === "otp" && portalReady
+        ? createPortal(
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm">
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="login-otp-title"
+                aria-describedby="login-otp-description"
+                className="relative w-full max-w-md rounded-2xl border border-white/15 bg-slate-950 p-5 shadow-2xl shadow-black/50 sm:p-6"
+              >
+                <button
+                  type="button"
+                  onClick={closeOtpModal}
+                  aria-label="Close verification dialog"
+                  className="absolute right-3 top-3 rounded-lg p-2 text-white/50 transition hover:bg-white/10 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
 
-      <div className="pt-1">
-        <SubmitButton label="Sign in" pending={pending} />
-      </div>
-    </form>
+                <div className="mb-5 pr-8">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-pink-500/15 text-pink-300">
+                    <KeyRound className="h-5 w-5" />
+                  </div>
+                  <h3 id="login-otp-title" className="text-lg font-semibold text-white">
+                    Enter your sign-in code
+                  </h3>
+                  <p id="login-otp-description" className="mt-1 text-sm leading-5 text-white/65">
+                    We sent a 6-digit code to <span className="font-semibold text-white">{email}</span>. It expires in 10 minutes.
+                  </p>
+                </div>
+
+                <form ref={verifyFormRef} action={verifyAction} className="space-y-3">
+                  <input type="hidden" name="email" value={email} />
+                  <input type="hidden" name="password" value={password} />
+                  <div>
+                    <label htmlFor="login-otp-token" className={labelCls}>Verification code</label>
+                    <input
+                      id="login-otp-token"
+                      name="token"
+                      value={otpToken}
+                      onChange={(event) => setOtpToken(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                      required
+                      autoFocus
+                      disabled={verifyPending}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      pattern="[0-9]{6}"
+                      aria-describedby="login-otp-status"
+                      className="w-full h-12 bg-white/10 border border-white/15 rounded-xl px-3.5 text-base font-mono tracking-[0.45em] text-white placeholder:text-white/35 focus:outline-none focus:border-pink-300/60 focus:ring-2 focus:ring-pink-500/30 transition text-center"
+                      placeholder="••••••"
+                    />
+                  </div>
+                  <StateAlert state={verifyState} />
+                  <p id="login-otp-status" aria-live="polite" className="min-h-5 text-center text-xs text-white/55">
+                    {verifyPending ? "Verifying code..." : "The code will be checked automatically when all 6 digits are entered."}
+                  </p>
+                </form>
+
+                <form
+                  action={resendAction}
+                  onSubmit={() => setResendSeconds(LOGIN_OTP_RESEND_SECONDS)}
+                  className="mt-4 space-y-3"
+                >
+                  <input type="hidden" name="email" value={email} />
+                  <input type="hidden" name="password" value={password} />
+                  <StateAlert state={resendState} />
+                  <button
+                    type="submit"
+                    disabled={resendPending || resendSeconds > 0}
+                    className="w-full rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {resendPending
+                      ? "Sending code..."
+                      : resendSeconds > 0
+                        ? `Resend code in ${resendSeconds}s`
+                        : "Resend code"}
+                  </button>
+                </form>
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 
@@ -738,7 +916,7 @@ export default function LoginForm({ compact = false }: { compact?: boolean }) {
   const styling = { inputCls, labelCls };
 
   return (
-    <div className="w-full rounded-2xl border border-white/20 bg-white/[0.08] backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.15)] overflow-hidden">
+    <div className="w-full rounded-2xl border border-white/20 bg-slate-950/95 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.15)] overflow-hidden">
       {/* Top glass highlight */}
       <div className="h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
@@ -786,6 +964,7 @@ export default function LoginForm({ compact = false }: { compact?: boolean }) {
               { id: "signup", label: "Register" },
             ] as const).map((m) => (
               <button
+                suppressHydrationWarning
                 key={m.id}
                 type="button"
                 onClick={() => setMode(m.id)}

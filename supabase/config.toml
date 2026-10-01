@@ -272,13 +272,13 @@ max_frequency = "5s"
 
 # Configure logged in session timeouts.
 # Core requirement: automatic logout after inactivity. Server-side floor is
-# 15m here; the client SessionTimeoutGuard mirrors it (see
-# src/components/auth/SessionTimeoutGuard.tsx) with a 1-minute warning.
+# 5m here; the client SessionTimeoutProvider mirrors it (see
+# src/components/auth/SessionTimeoutProvider.tsx) with a 30-second warning.
 # For production parity set the same values in the Supabase Dashboard:
 # Authentication → Sessions → Inactivity timeout.
 [auth.sessions]
 timebox = "24h"
-inactivity_timeout = "15m"
+inactivity_timeout = "5m"
 
 # This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
 # [auth.hook.before_user_created]

@@ -3,11 +3,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { serverLog } from "@/lib/server/log";
 
 /**
- * Email OTP issuance + verification (seller registration & password reset).
+ * Email OTP issuance + verification (login, seller registration & password reset).
  *
  * SERVER ONLY — never imported by Client Components. `sendOtpEmail()` runs
- * exclusively in Server Actions / Route Handlers, so RESEND_API_KEY and the
- * OTP_FROM_* variables never reach the browser (no NEXT_PUBLIC_ prefix).
+ * exclusively in Server Actions / Route Handlers, so SMTP and OTP sender
+ * variables never reach the browser (no NEXT_PUBLIC_ prefix).
  *
  * Security properties:
  * - 6-digit codes from a CSPRNG (`randomInt`), 10-minute expiry.
@@ -24,9 +24,7 @@ export const OTP_EXPIRY_MINUTES = 10;
 export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
-
-export type OtpPurpose = "seller_registration" | "password_reset";
+export type OtpPurpose = "login" | "seller_registration" | "password_reset";
 
 export function generateOtpCode(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, "0");
@@ -81,6 +79,21 @@ export function buildOtpEmail(
       `<p>If you did not request this, you can safely ignore this email.</p>`;
     return { subject, text, html };
   }
+  if (purpose === "login") {
+    const subject = "Your Sign-In Verification Code";
+    const text =
+      `Your Airship Express sign-in verification code is: ${code}\n\n` +
+      `It expires in ${OTP_EXPIRY_MINUTES} minutes. Enter it on the sign-in page to finish signing in.\n\n` +
+      `Security warning: never share this code with anyone. Airship Express staff will never ask for it.\n` +
+      `If you did not request this, you can safely ignore this email.`;
+    const html =
+      `<p>Your Airship Express sign-in verification code is:</p>` +
+      `<p style="font-size:28px;font-weight:bold;letter-spacing:6px;">${escapeHtml(code)}</p>` +
+      `<p>It expires in ${OTP_EXPIRY_MINUTES} minutes. Enter it on the sign-in page to finish signing in.</p>` +
+      `<p><strong>Security warning:</strong> never share this code with anyone. Airship Express staff will never ask for it.</p>` +
+      `<p>If you did not request this, you can safely ignore this email.</p>`;
+    return { subject, text, html };
+  }
   const subject = "Password Reset Verification Code";
   const text =
     `Your Airship Express password reset code is: ${code}\n\n` +
@@ -97,11 +110,11 @@ export function buildOtpEmail(
 }
 
 /**
- * Deliver the OTP to the seller's inbox via Resend (server-side only).
+ * Deliver the OTP through SMTP (server-side only).
  *
- * - Production (`RESEND_API_KEY` + `OTP_FROM_EMAIL` set): sends through the
- *   Resend API and throws on failure so the caller can invalidate the code.
- * - Development (no key): the code is logged server-side — read it from the
+ * - Production with SMTP settings: sends through Nodemailer and throws on
+ *   failure so the caller can invalidate the code.
+ * - Development (SMTP not configured): the code is logged server-side — read it from the
  *   terminal (`npm run dev` output). It is NEVER returned to the browser.
  *   The code print is skipped entirely in production.
  */
@@ -112,18 +125,19 @@ export async function sendOtpEmail(
   name?: string,
 ): Promise<void> {
   const { subject, text, html } = buildOtpEmail(code, purpose, name);
-  const apiKey = process.env.RESEND_API_KEY;
+  const smtpHost = process.env.SMTP_HOST?.trim();
+  const smtpUser = process.env.SMTP_USER?.trim();
+  const smtpPass = process.env.SMTP_PASS;
   const fromEmail = process.env.OTP_FROM_EMAIL;
-  const fromName = process.env.OTP_FROM_NAME?.trim() || "Airship Express";
   const isProduction = process.env.NODE_ENV === "production";
 
   serverLog.info("otp.send", { email, purpose, subject });
 
-  if (!apiKey || !fromEmail) {
+  if (!smtpHost || !smtpUser || !smtpPass || !fromEmail) {
     if (isProduction) {
       // Never print codes in production, even when misconfigured.
       serverLog.error("otp.send", {
-        err: "RESEND_API_KEY or OTP_FROM_EMAIL is not configured",
+        err: "SMTP_HOST, SMTP_USER, SMTP_PASS, or OTP_FROM_EMAIL is not configured",
       });
       throw new Error("Email service is not configured.");
     }
@@ -134,40 +148,15 @@ export async function sendOtpEmail(
     return;
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
-  let res: Response;
   try {
-    res = await fetch(RESEND_ENDPOINT, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: `${fromName} <${fromEmail}>`,
-        to: [email],
-        subject,
-        text,
-        html,
-      }),
-    });
+    const { sendTransactionalEmail } = await import("@/lib/server/mailer");
+    await sendTransactionalEmail({ to: email, subject, text, html });
   } catch (e) {
+    const smtpError = e as Error & { code?: string; responseCode?: number };
     serverLog.error("otp.send", {
-      err: e instanceof Error ? e.message : "Resend request failed",
-      email,
-      purpose,
-    });
-    throw new Error("Unable to send the verification code. Please try again.");
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  if (!res.ok) {
-    // Log status only — never the API key, the code, or response secrets.
-    serverLog.error("otp.send", {
-      err: `Resend rejected the request (status ${res.status})`,
+      err: e instanceof Error ? e.message : "SMTP request failed",
+      code: smtpError.code,
+      responseCode: smtpError.responseCode,
       email,
       purpose,
     });
@@ -190,15 +179,19 @@ export async function issueOtp(
   }
 
   const now = Date.now();
-  const { data: recent } = await admin
+  const { data: recent, error: recentError } = await admin
     .from("email_verification_codes")
-    .select("id, created_at")
+    .select("id, created_at, consumed_at")
     .eq("email", normalized)
     .eq("purpose", purpose)
-    .is("consumed_at", null)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (recentError) {
+    serverLog.error("otp.issue", { err: recentError.message, code: recentError.code });
+    return { ok: false, error: "Unable to send the verification code. Please try again." };
+  }
 
   if (recent?.created_at) {
     const ageSec = (now - new Date(recent.created_at).getTime()) / 1000;
@@ -209,11 +202,18 @@ export async function issueOtp(
         retryAfter: Math.ceil(OTP_RESEND_COOLDOWN_SECONDS - ageSec),
       };
     }
-    // Invalidate the superseded code.
-    await admin
-      .from("email_verification_codes")
-      .update({ consumed_at: new Date().toISOString() })
-      .eq("id", recent.id);
+    // Invalidate a superseded code after the cooldown. Failed deliveries are
+    // also rate-limited because their records are marked consumed.
+    if (!recent.consumed_at) {
+      const { error: invalidateError } = await admin
+        .from("email_verification_codes")
+        .update({ consumed_at: new Date().toISOString() })
+        .eq("id", recent.id);
+      if (invalidateError) {
+        serverLog.error("otp.issue", { err: invalidateError.message, code: invalidateError.code });
+        return { ok: false, error: "Unable to send the verification code. Please try again." };
+      }
+    }
   }
 
   const code = generateOtpCode();
@@ -230,7 +230,10 @@ export async function issueOtp(
     .select("id")
     .single();
   if (error || !inserted) {
-    serverLog.error("otp.issue", { err: error?.message ?? "insert failed" });
+    serverLog.error("otp.issue", {
+      err: error?.message ?? "insert failed",
+      code: error?.code,
+    });
     return { ok: false, error: "Unable to send the verification code. Please try again." };
   }
 

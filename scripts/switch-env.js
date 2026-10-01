@@ -80,9 +80,9 @@ if (cmd === "status") {
     console.error("Missing .env.localhost and .env.localhost.example - cannot switch.");
     process.exit(1);
   }
-  // Preserve AI keys + timeout the user already typed in the active file.
+  // Preserve AI keys, timeout, and SMTP settings from the active file.
   const active = read(ACTIVE) || "";
-  for (const key of ["GROQ_API_KEY", "GEMINI_API_KEY", "GROQ_MODEL", "GEMINI_MODEL", "NEXT_PUBLIC_SESSION_TIMEOUT_MINUTES", "RESEND_API_KEY", "OTP_FROM_EMAIL", "OTP_FROM_NAME"]) {
+  for (const key of ["GROQ_API_KEY", "GEMINI_API_KEY", "GROQ_MODEL", "GEMINI_MODEL", "NEXT_PUBLIC_SESSION_TIMEOUT_MINUTES", "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASS", "OTP_FROM_EMAIL", "OTP_FROM_NAME"]) {
     const m = active.match(new RegExp(`^${key}=.*`, "m"));
     if (m) src = src.replace(new RegExp(`^${key}=.*`, "m"), m[0]);
   }

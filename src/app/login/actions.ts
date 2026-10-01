@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
 import {
   signInSchema,
   signUpSchema,
@@ -59,7 +61,40 @@ function friendlyAuthError(message: string): string {
     : `Cannot reach the auth server (${host}). Check your network / Supabase project status and restart \`npm run dev\`.`;
 }
 
-export async function signIn(
+/** Validate a password without persisting a Supabase session in cookies. */
+async function checkCredentialsWithoutSession(email: string, password: string) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) throw new Error("Supabase auth is not configured.");
+
+  const validator = createSupabaseClient<Database>(url, anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+  const { data, error } = await validator.auth.signInWithPassword({ email, password });
+  if (error || !data.user?.email) {
+    return {
+      ok: false as const,
+      error: friendlyAuthError(error?.message ?? "Invalid login credentials"),
+    };
+  }
+
+  const { data: profile } = await validator
+    .from("profiles")
+    .select("is_active")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  if (profile && !profile.is_active) {
+    return { ok: false as const, error: "Invalid email or password." };
+  }
+
+  return { ok: true as const, email: data.user.email.trim().toLowerCase() };
+}
+
+export async function requestLoginOtp(
   _prev: AuthState,
   formData: FormData,
 ): Promise<AuthState> {
@@ -76,42 +111,100 @@ export async function signIn(
     }
   }
 
-  const email = rawEmail.trim();
+  const email = rawEmail.trim().toLowerCase();
+  try {
+    const checked = await checkCredentialsWithoutSession(email, password);
+    if (!checked.ok) return { error: checked.error };
 
-  let destination = "/dashboard";
+    const issued = await issueOtp(checked.email, "login");
+    if (!issued.ok) return { error: issued.error };
+
+    return {
+      message: "Sign-in code sent. Check your email and enter it below within 10 minutes.",
+    };
+  } catch (e) {
+    console.error("login OTP request failed:", e);
+    return { error: "Unable to connect to authentication service. Please try again." };
+  }
+}
+
+/**
+ * Stable form entry point for the first password sign-in step. Registration uses the
+ * dedicated OTP actions below (requestSellerOtp → verifySellerOtpAndRegister)
+ * so no account exists until the email OTP is verified.
+ */
+export async function authenticate(
+  prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  return requestLoginOtp(prev, formData);
+}
+
+/** Verify the OTP and password, then create the cookie-backed Supabase session. */
+export async function verifyLoginOtp(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const input = {
+    email: String(formData.get("email") ?? ""),
+    password: String(formData.get("password") ?? ""),
+    token: String(formData.get("token") ?? ""),
+  };
 
   try {
-    const supabase = await createClient();
-    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: friendlyAuthError(error.message) };
-
-    // Resolve user's role from profiles or metadata
-    let targetRole: AppRole = "Customer";
-    if (authData?.user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", authData.user.id)
-        .maybeSingle();
-
-      if (profile?.role) {
-        targetRole = parseAppRole(profile.role) ?? "Customer";
-      } else if (authData.user.user_metadata?.role) {
-        targetRole = parseAppRole(authData.user.user_metadata.role) ?? "Customer";
-      }
-    }
-
-    if (targetRole === "SuperAdmin" || targetRole === "Admin") {
-      destination = "/admin/dashboard";
-    } else if (targetRole === "Seller") {
-      destination = "/seller/dashboard";
-    } else {
-      destination = "/dashboard";
-    }
-
-    revalidatePath("/", "layout");
+    signInSchema.parse({ email: input.email, password: input.password });
+    otpCodeRule.parse(input.token);
   } catch (e) {
-    // Re-throw redirect errors if triggered internally
+    if (e instanceof z.ZodError) {
+      return { error: e.issues[0]?.message ?? "Validation failed" };
+    }
+  }
+
+  try {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const checked = await checkCredentialsWithoutSession(normalizedEmail, input.password);
+    if (!checked.ok || checked.email !== normalizedEmail) {
+      return { error: checked.ok ? "Invalid email or password." : checked.error };
+    }
+
+    const verified = await verifyOtp(checked.email, "login", input.token);
+    if (!verified.ok) return { error: verified.error };
+
+    const supabase = await createClient();
+    const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: checked.email,
+      password: input.password,
+    });
+    if (signInError || !authData.user) {
+      return { error: friendlyAuthError(signInError?.message ?? "Invalid login credentials") };
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, is_active")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+    if (profile && !profile.is_active) {
+      await supabase.auth.signOut();
+      return { error: "Invalid email or password." };
+    }
+
+    let targetRole: AppRole = "Customer";
+    if (profile?.role) {
+      targetRole = parseAppRole(profile.role) ?? "Customer";
+    } else if (authData.user.user_metadata?.role) {
+      targetRole = parseAppRole(authData.user.user_metadata.role) ?? "Customer";
+    }
+
+    const destination =
+      targetRole === "SuperAdmin" || targetRole === "Admin"
+        ? "/admin/dashboard"
+        : targetRole === "Seller"
+          ? "/seller/dashboard"
+          : "/dashboard";
+    revalidatePath("/", "layout");
+    redirect(destination);
+  } catch (e) {
     if (
       e &&
       typeof e === "object" &&
@@ -121,23 +214,9 @@ export async function signIn(
     ) {
       throw e;
     }
-    console.error("signIn failed:", e);
+    console.error("login OTP verification failed:", e);
     return { error: "Unable to connect to authentication service. Please try again." };
   }
-
-  redirect(destination);
-}
-
-/**
- * Stable form entry point for password sign-in. Registration uses the
- * dedicated OTP actions below (requestSellerOtp → verifySellerOtpAndRegister)
- * so no account exists until the email OTP is verified.
- */
-export async function authenticate(
-  prev: AuthState,
-  formData: FormData,
-): Promise<AuthState> {
-  return signIn(prev, formData);
 }
 
 export async function signOut() {

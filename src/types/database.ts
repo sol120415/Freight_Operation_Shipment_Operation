@@ -855,7 +855,7 @@ export interface Database {
         Row: {
           id: string;
           email: string;
-          purpose: "seller_registration" | "password_reset";
+          purpose: "login" | "seller_registration" | "password_reset";
           code_hash: string;
           attempts: number;
           max_attempts: number;
@@ -866,7 +866,7 @@ export interface Database {
         Insert: {
           id?: string;
           email: string;
-          purpose: "seller_registration" | "password_reset";
+          purpose: "login" | "seller_registration" | "password_reset";
           code_hash: string;
           attempts?: number;
           max_attempts?: number;

@@ -3,24 +3,27 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Search, Sparkles, LogOut, Loader2, Bell } from "lucide-react";
+import { Search, Clock3, LogOut, Loader2, Bell } from "lucide-react";
 import type { Profile } from "@/types";
 import { signOut } from "@/app/login/actions";
+import {
+  formatSessionCountdown,
+  useSessionTimeout,
+} from "@/components/auth/SessionTimeoutProvider";
 import ThemeToggle from "./ThemeToggle";
 import SettingsMenu from "./SettingsMenu";
 
 export default function Header({
   profile,
-  aiEnabled,
   unreadCount = 0,
 }: {
   profile: Profile;
-  aiEnabled: boolean;
   unreadCount?: number;
 }) {
   const router = useRouter();
   const [term, setTerm] = useState("");
   const [pending, startTransition] = useTransition();
+  const { secondsLeft } = useSessionTimeout();
 
   function onSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -54,14 +57,16 @@ export default function Header({
 
       <div className="order-2 ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
         <div
+          title={`Session expires in ${formatSessionCountdown(secondsLeft)} if idle`}
+          aria-label={`Session expires in ${formatSessionCountdown(secondsLeft)} if idle`}
           className={`hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-semibold border ${
-            aiEnabled
-              ? "bg-pink-50 dark:bg-pink-950/40 border-pink-200 dark:border-pink-900 text-pink-700 dark:text-pink-300"
-              : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400"
+            secondsLeft <= 30
+              ? "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-300"
+              : "bg-pink-50 dark:bg-pink-950/40 border-pink-200 dark:border-pink-900 text-pink-700 dark:text-pink-300"
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>{aiEnabled ? "AI Engine Online" : "AI Engine Offline"}</span>
+          <Clock3 className="w-3.5 h-3.5" aria-hidden="true" />
+          <span className="tabular-nums">Session timeout · {formatSessionCountdown(secondsLeft)}</span>
         </div>
 
         <ThemeToggle />
@@ -97,6 +102,9 @@ export default function Header({
           </div>
 
           <button
+            // Some browser extensions add `fdprocessedid` before React hydrates.
+            // Ignore that external attribute without hiding warnings elsewhere.
+            suppressHydrationWarning
             onClick={() => startTransition(() => signOut())}
             title="Sign out"
             aria-label="Sign out"

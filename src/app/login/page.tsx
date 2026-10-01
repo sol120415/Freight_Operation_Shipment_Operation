@@ -9,7 +9,7 @@ export default async function LoginPage({
   const timedOut = sp.timeout === "1";
   return (
     <div
-      className="min-h-screen w-full flex flex-col justify-between relative bg-cover bg-center bg-no-repeat selection:bg-[#E81B75] selection:text-white"
+      className="min-h-screen w-full flex flex-col justify-between relative isolate bg-cover bg-center bg-no-repeat selection:bg-[#E81B75] selection:text-white"
       style={{
         backgroundImage: "url('/images/airship-brand-poster.jpg')",
       }}
@@ -105,7 +105,7 @@ export default async function LoginPage({
               Session expired due to inactivity. Please sign in again.
             </div>
           )}
-          <div className="w-full rounded-[28px] border border-white/50 dark:border-slate-700/60 bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl shadow-[0_24px_70px_rgba(0,0,0,0.45),0_6px_20px_rgba(0,0,0,0.2)] overflow-hidden transition-all duration-300">
+          <div className="w-full rounded-[28px] border border-white/25 dark:border-slate-700/60 bg-slate-950/80 dark:bg-slate-900/90 backdrop-blur-2xl shadow-[0_24px_70px_rgba(0,0,0,0.45),0_6px_20px_rgba(0,0,0,0.2)] overflow-hidden transition-all duration-300">
             <LoginForm />
           </div>
         </div>
