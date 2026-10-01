@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Check, RotateCcw } from "lucide-react";
 import { markBatchReady, releaseBatch } from "./actions";
@@ -10,7 +10,6 @@ import type { CarrierBatchWithItems } from "@/types";
 
 export default function BatchCards({ batches }: { batches: CarrierBatchWithItems[] }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   function ready(batch: { id: string }) {

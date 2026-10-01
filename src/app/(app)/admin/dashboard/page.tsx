@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  Activity,
   Plus,
   PackageCheck,
   Package,
@@ -10,7 +9,6 @@ import {
   Boxes,
   ShieldCheck,
   Building2,
-  Users,
 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { getHubDashboard } from "@/lib/queries";
@@ -27,7 +25,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
   // Enforce Admin route guard (SuperAdmin inherits admin privileges)
-  const profile = await requireRole(["Admin", "SuperAdmin"]);
+  await requireRole(["Admin", "SuperAdmin"]);
 
   const [{ shipments, batches, handovers }, recentLogs] = await Promise.all([
     getHubDashboard(),

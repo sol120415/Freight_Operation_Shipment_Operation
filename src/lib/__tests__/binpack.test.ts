@@ -54,7 +54,7 @@ describe("packIntoBins first-fit-decreasing", () => {
   it("splits into multiple bins when capacity is exceeded", () => {
     // two 3cbm items each exceeding single-bin 4cbm combined
     const items = [mk("big1", 100, 100, 300, 100), mk("big2", 100, 100, 300, 100)];
-    const { packed, unpacked } = packIntoBins(items, [BIN, BIN]);
+    const { packed } = packIntoBins(items, [BIN, BIN]);
     expect(packed).toHaveLength(2);
     expect(packed[0].items).toHaveLength(1);
     expect(packed[1].items).toHaveLength(1);

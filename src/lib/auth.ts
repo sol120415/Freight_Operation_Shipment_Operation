@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { parseAppRole, isStaff, isOps } from "@/lib/roles";
 import {
   can,
   type Permission,

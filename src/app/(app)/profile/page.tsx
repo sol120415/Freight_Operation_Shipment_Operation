@@ -1,4 +1,4 @@
-import { UserCircle, Mail, ShieldCheck } from "lucide-react";
+import { Mail, ShieldCheck } from "lucide-react";
 import { requireProfile, roleTier } from "@/lib/auth";
 import PageHeader from "@/components/ui/PageHeader";
 import PasswordCard from "./PasswordCard";

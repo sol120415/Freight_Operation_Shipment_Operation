@@ -1,5 +1,5 @@
 import type { AppRole } from "@/types";
-import { isStaffRole, isOpsStaffRole } from "@/lib/rbac";
+import { isStaffRole } from "@/lib/rbac";
 
 export const ALL_ROLES: AppRole[] = ["SuperAdmin", "Admin", "Seller", "Customer", "Citizen"];
 

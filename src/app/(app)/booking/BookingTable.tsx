@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Ban, Archive, Loader2 } from "lucide-react";
 import { cancelBooking, archiveBooking } from "./actions";
