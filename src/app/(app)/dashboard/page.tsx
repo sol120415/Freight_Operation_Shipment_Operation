@@ -22,6 +22,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { listTrackingLogs } from "@/lib/repos/loadplans";
 import { formatDate } from "@/lib/utils";
 import type { TrackingLog } from "@/types";
+import { isDemoMode } from "@/lib/demoMode";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ export default async function DashboardPage() {
 
   // ---- Staff / admin operations view ----
   const staff = isStaff(profile.role);
+  const demoMode = await isDemoMode();
 
   const [{ shipments, batches, handovers }, recentLogs] = await Promise.all([
     getHubDashboard(),
@@ -140,7 +142,7 @@ export default async function DashboardPage() {
           <VolumeChartLazy data={volume} />
         </div>
 
-        <ActivityFeed initial={(recentLogs) as TrackingLog[]} />
+        <ActivityFeed initial={(recentLogs) as TrackingLog[]} live={!demoMode} />
       </div>
 
       {/* Open batches */}

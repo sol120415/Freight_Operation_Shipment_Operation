@@ -1,6 +1,8 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Shipment, ShipmentStatus, TrackingLog, Hub, Seller } from "@/types";
+import { DEMO_SHIPMENTS, DEMO_TRACKING_LOGS } from "@/lib/demoData";
+import { isDemoMode } from "@/lib/demoMode";
 
 export interface ParcelRow extends Shipment {
   sellerName: string | null;
@@ -29,6 +31,15 @@ export interface ParcelListResult {
 
 const PAGE_SIZE = 20;
 
+function toDemoParcelRow(shipment: Shipment): ParcelRow {
+  return {
+    ...shipment,
+    sellerName: shipment.seller_id ? "Airship Demo Seller" : null,
+    sellerReference: shipment.seller_id ? "SELL-DEMO-0001" : null,
+    hubName: shipment.current_location,
+  };
+}
+
 /**
  * Paginated, filterable parcel listing.
  * Visibility is enforced twice: RLS scopes rows to the caller's role, and the
@@ -37,9 +48,40 @@ const PAGE_SIZE = 20;
 export async function listParcels(
   opts: ListParcelsOptions = {},
 ): Promise<ParcelListResult> {
-  const supabase = await createClient();
   const page = Math.max(1, opts.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? PAGE_SIZE));
+
+  if (await isDemoMode()) {
+    const term = opts.q?.trim().toLowerCase();
+    const filtered = DEMO_SHIPMENTS.filter((shipment) => {
+      if (opts.status && shipment.status !== opts.status) return false;
+      if (opts.sellerId && shipment.seller_id !== opts.sellerId) return false;
+      if (opts.customerId && shipment.client_id !== opts.customerId) return false;
+      if (opts.hubId && shipment.current_hub_id !== opts.hubId) return false;
+      if (!term) return true;
+      return [
+        shipment.tracking_number,
+        shipment.reference,
+        shipment.consignee,
+        shipment.client_name,
+      ].some((value) => value?.toLowerCase().includes(term));
+    })
+      .sort((a, b) => {
+        if (opts.sort === "created_asc") return a.created_at.localeCompare(b.created_at);
+        if (opts.sort === "updated_desc") return b.updated_at.localeCompare(a.updated_at);
+        return b.created_at.localeCompare(a.created_at);
+      })
+      .map(toDemoParcelRow);
+    const from = (page - 1) * pageSize;
+    return {
+      rows: filtered.slice(from, from + pageSize),
+      total: filtered.length,
+      page,
+      pageSize,
+    };
+  }
+
+  const supabase = await createClient();
 
   let query = supabase
     .from("shipments")
@@ -89,6 +131,11 @@ export async function listParcels(
 /** Single parcel with joined context. Returns null when RLS hides the row. */
 export const getParcelById = cache(
   async (id: string): Promise<ParcelRow | null> => {
+    if (await isDemoMode()) {
+      const shipment = DEMO_SHIPMENTS.find((item) => item.id === id);
+      return shipment ? toDemoParcelRow(shipment) : null;
+    }
+
     const supabase = await createClient();
     const { data } = await supabase
       .from("shipments")
@@ -117,6 +164,10 @@ export const getParcelById = cache(
 export async function getTrackingTimeline(
   parcelId: string,
 ): Promise<TrackingLog[]> {
+  if (await isDemoMode()) {
+    return DEMO_TRACKING_LOGS.filter((log) => log.shipment_id === parcelId);
+  }
+
   const supabase = await createClient();
   const { data } = await supabase
     .from("shipment_tracking_logs")
@@ -130,6 +181,14 @@ export async function getTrackingTimeline(
 export async function getParcelByTrackingNumber(
   trackingNumber: string,
 ): Promise<ParcelRow | null> {
+  if (await isDemoMode()) {
+    const normalized = trackingNumber.trim().toLowerCase();
+    const shipment = DEMO_SHIPMENTS.find(
+      (item) => item.tracking_number?.toLowerCase() === normalized,
+    );
+    return shipment ? toDemoParcelRow(shipment) : null;
+  }
+
   const supabase = await createClient();
   const { data } = await supabase
     .from("shipments")

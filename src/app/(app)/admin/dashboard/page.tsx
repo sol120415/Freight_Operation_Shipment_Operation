@@ -20,6 +20,7 @@ import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import EmptyState from "@/components/ui/EmptyState";
 import { listTrackingLogs } from "@/lib/repos/loadplans";
 import type { TrackingLog } from "@/types";
+import { isDemoMode } from "@/lib/demoMode";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export default async function AdminDashboardPage() {
     getHubDashboard(),
     listTrackingLogs(undefined, 15),
   ]);
+  const demoMode = await isDemoMode();
 
   const stats = computeHubStats(shipments);
   const volume = monthlyIntakeVolume(shipments);
@@ -128,7 +130,7 @@ export default async function AdminDashboardPage() {
           <VolumeChartLazy data={volume} />
         </div>
 
-        <ActivityFeed initial={recentLogs as TrackingLog[]} />
+        <ActivityFeed initial={recentLogs as TrackingLog[]} live={!demoMode} />
       </div>
 
       {/* Open Batches */}

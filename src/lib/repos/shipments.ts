@@ -1,6 +1,8 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Shipment } from "@/types";
+import { DEMO_SHIPMENTS } from "@/lib/demoData";
+import { isDemoMode } from "@/lib/demoMode";
 
 export interface ShipmentQuery {
   q?: string;
@@ -25,10 +27,32 @@ export interface Paged<T> {
  */
 export const listShipments = cache(
   async (opts: ShipmentQuery = {}): Promise<Paged<Shipment>> => {
-    const supabase = await createClient();
     const page = Math.max(1, opts.page ?? 1);
     const perPage = Math.min(100, Math.max(1, opts.perPage ?? 25));
     const from = (page - 1) * perPage;
+
+    if (await isDemoMode()) {
+      const term = opts.q?.trim().toLowerCase();
+      const filtered = DEMO_SHIPMENTS.filter((shipment) => {
+        if (opts.status && shipment.status !== opts.status) return false;
+        if (opts.platform && shipment.platform !== opts.platform) return false;
+        if (!term) return true;
+        return [
+          shipment.reference,
+          shipment.tracking_number,
+          shipment.client_name,
+          shipment.consignee,
+        ].some((value) => value?.toLowerCase().includes(term));
+      });
+      return {
+        rows: filtered.slice(from, from + perPage),
+        total: filtered.length,
+        page,
+        perPage,
+      };
+    }
+
+    const supabase = await createClient();
 
     let query = supabase.from("shipments").select("*", { count: "exact" });
     if (!opts.includeArchived) query = query.is("archived_at", null);
@@ -53,6 +77,8 @@ export const listShipments = cache(
 /** Unbounded-ish recent set for the dashboard KPI/chart roll-ups. */
 export const listRecentShipments = cache(
   async (limit = 200): Promise<Shipment[]> => {
+    if (await isDemoMode()) return DEMO_SHIPMENTS.slice(0, limit);
+
     const supabase = await createClient();
     const { data } = await supabase
       .from("shipments")
@@ -77,8 +103,22 @@ export const listShipmentsForBol = cache(
       | "container_no"
       | "weight_kg"
       | "volume_cbm"
-    >[]
+  >[]
   > => {
+    if (await isDemoMode()) {
+      return DEMO_SHIPMENTS.map((shipment) => ({
+        id: shipment.id,
+        reference: shipment.reference,
+        shipper: shipment.shipper,
+        consignee: shipment.consignee,
+        origin: shipment.origin,
+        destination: shipment.destination,
+        container_no: shipment.container_no,
+        weight_kg: shipment.weight_kg,
+        volume_cbm: shipment.volume_cbm,
+      }));
+    }
+
     const supabase = await createClient();
     const { data } = await supabase
       .from("shipments")
@@ -91,6 +131,10 @@ export const listShipmentsForBol = cache(
 );
 
 export const getShipmentById = cache(async (id: string): Promise<Shipment | null> => {
+  if (await isDemoMode()) {
+    return DEMO_SHIPMENTS.find((shipment) => shipment.id === id) ?? null;
+  }
+
   const supabase = await createClient();
   const { data } = await supabase.from("shipments").select("*").eq("id", id).maybeSingle();
   return (data as Shipment) ?? null;

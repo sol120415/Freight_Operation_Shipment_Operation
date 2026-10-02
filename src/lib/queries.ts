@@ -1,11 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Shipment, CarrierBatch, Handover } from "@/types";
+import {
+  DEMO_BATCHES,
+  DEMO_HANDOVERS,
+  DEMO_SHIPMENTS,
+} from "@/lib/demoData";
+import { isDemoMode } from "@/lib/demoMode";
 
 export { computeHubStats, monthlyIntakeVolume } from "@/lib/stats";
 export type { IntakeRow } from "@/lib/stats";
 
 /** Fetch all parcels visible to the current user (RLS-scoped). */
 export async function getShipments(): Promise<Shipment[]> {
+  if (await isDemoMode()) return DEMO_SHIPMENTS;
+
   const supabase = await createClient();
   const { data } = await supabase
     .from("shipments")
@@ -19,6 +27,14 @@ export async function getShipments(): Promise<Shipment[]> {
  * parallel pass server-side.
  */
 export async function getHubDashboard() {
+  if (await isDemoMode()) {
+    return {
+      shipments: DEMO_SHIPMENTS,
+      batches: DEMO_BATCHES,
+      handovers: DEMO_HANDOVERS,
+    };
+  }
+
   const supabase = await createClient();
   const [recentShipments, batches, handovers] = await Promise.all([
     supabase.from("shipments").select("*").limit(200),

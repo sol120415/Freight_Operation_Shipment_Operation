@@ -21,6 +21,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import ParcelMapLazy from "@/components/map/ParcelMapLazy";
 import ShareLocationButton from "@/components/map/ShareLocationButton";
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
+import { isDemoMode } from "@/lib/demoMode";
 import ParcelOpsPanel from "./ParcelOpsPanel";
 import TrackingLinkCard from "./TrackingLinkCard";
 
@@ -33,6 +34,7 @@ export default async function ParcelDetailPage({
 }) {
   const profile = await requireProfile();
   const { id } = await params;
+  const demoMode = await isDemoMode();
 
   // RLS: sellers see only their parcels; customers only assigned ones.
   const parcel = await getParcelById(id);
@@ -40,12 +42,12 @@ export default async function ParcelDetailPage({
 
   const [events, hubs] = await Promise.all([
     getTrackingTimeline(parcel.id),
-    canUpdateParcelStatus(profile.role)
+    canUpdateParcelStatus(profile.role) && !demoMode
       ? listHubs()
       : Promise.resolve([]),
   ]);
 
-  const staffOps = canUpdateParcelStatus(profile.role);
+  const staffOps = canUpdateParcelStatus(profile.role) && !demoMode;
 
   return (
     <div className="space-y-4 max-w-6xl mx-auto">
@@ -160,7 +162,7 @@ export default async function ParcelDetailPage({
           )}
 
           {/* RLS guarantees a Seller only ever sees their own parcels. */}
-          {profile.role === "Seller" && (
+          {profile.role === "Seller" && !demoMode && (
             <TrackingLinkCard parcelId={parcel.id} />
           )}
         </div>

@@ -16,9 +16,11 @@ import SettingsMenu from "./SettingsMenu";
 export default function Header({
   profile,
   unreadCount = 0,
+  demoMode = false,
 }: {
   profile: Profile;
   unreadCount?: number;
+  demoMode?: boolean;
 }) {
   const router = useRouter();
   const [term, setTerm] = useState("");
@@ -84,7 +86,7 @@ export default function Header({
           )}
         </Link>
 
-        <SettingsMenu role={profile.role} />
+        <SettingsMenu role={profile.role} demoMode={demoMode} />
 
         <div className="hidden sm:block h-6 w-px bg-slate-200 dark:bg-slate-700" />
 
@@ -95,9 +97,6 @@ export default function Header({
           <div className="text-left hidden md:block min-w-0 max-w-[12rem]">
             <div className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none truncate">
               {profile.full_name ?? profile.email}
-            </div>
-            <div className="text-[10px] text-slate-500 font-medium">
-              {profile.role} Access Level
             </div>
           </div>
 
