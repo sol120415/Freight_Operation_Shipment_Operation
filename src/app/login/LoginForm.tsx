@@ -122,6 +122,38 @@ function StateAlert({ state }: { state: AuthState }) {
   );
 }
 
+function OtpCooldown({ seconds }: { seconds: number }) {
+  if (seconds <= 0) return null;
+
+  const progress = Math.min(100, (seconds / LOGIN_OTP_RESEND_SECONDS) * 100);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="space-y-1.5 rounded-xl border border-pink-300/20 bg-pink-500/10 px-3 py-2.5"
+    >
+      <div className="flex items-center justify-between gap-3 text-xs text-white/65">
+        <span>Resend available in</span>
+        <span className="font-mono font-semibold tabular-nums text-pink-200">{seconds}s</span>
+      </div>
+      <div
+        role="progressbar"
+        aria-label={`Resend code available in ${seconds} seconds`}
+        aria-valuemin={0}
+        aria-valuemax={LOGIN_OTP_RESEND_SECONDS}
+        aria-valuenow={seconds}
+        className="h-1.5 overflow-hidden rounded-full bg-white/10"
+      >
+        <div
+          className="h-full rounded-full bg-pink-400 transition-[width] duration-1000 ease-linear"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 interface FormStyling {
   inputCls: string;
   labelCls: string;
@@ -384,12 +416,15 @@ function SignInForm({
                   <input type="hidden" name="email" value={email} />
                   <input type="hidden" name="password" value={password} />
                   <StateAlert state={resendState} />
+                  <OtpCooldown seconds={resendSeconds} />
                   <button
                     type="submit"
-                    disabled={resendPending || resendSeconds > 0}
+                    disabled={verifyPending || resendPending || resendSeconds > 0}
                     className="w-full rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {resendPending
+                    {verifyPending
+                      ? "Authorizing..."
+                      : resendPending
                       ? "Sending code..."
                       : resendSeconds > 0
                         ? `Resend code in ${resendSeconds}s`
@@ -434,18 +469,27 @@ function SellerSignupForm({ styling, showPw, onTogglePw }: { styling: FormStylin
   const [draft, setDraft] = useState<SellerDraft>(EMPTY_DRAFT);
   const [step, setStep] = useState<"details" | "otp">("details");
   const [clientError, setClientError] = useState<string | null>(null);
+  const [resendSeconds, setResendSeconds] = useState(0);
 
   const [reqState, reqAction, reqPending] = useActionState<AuthState, FormData>(requestSellerOtp, {});
   const [verState, verAction, verPending] = useActionState<AuthState, FormData>(verifySellerOtpAndRegister, {});
 
   // Advance to the OTP step once the code was accepted for sending.
-  const sentMessage = reqState.message;
   useEffect(() => {
-    if (sentMessage) {
+    if (reqState.message) {
       setStep("otp");
       setClientError(null);
+      setResendSeconds(LOGIN_OTP_RESEND_SECONDS);
     }
-  }, [sentMessage]);
+  }, [reqState]);
+
+  useEffect(() => {
+    if (step !== "otp" || resendSeconds <= 0) return;
+    const timer = window.setTimeout(() => {
+      setResendSeconds((remaining) => Math.max(0, remaining - 1));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [step, resendSeconds]);
 
   const set = (k: keyof SellerDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setDraft((d) => ({ ...d, [k]: e.target.value }));
@@ -490,7 +534,10 @@ function SellerSignupForm({ styling, showPw, onTogglePw }: { styling: FormStylin
           expires in 10 minutes.
           <button
             type="button"
-            onClick={() => setStep("details")}
+            onClick={() => {
+              setStep("details");
+              setResendSeconds(0);
+            }}
             className="ml-2 font-semibold text-pink-300 hover:underline cursor-pointer"
           >
             Edit details
@@ -536,17 +583,24 @@ function SellerSignupForm({ styling, showPw, onTogglePw }: { styling: FormStylin
           <SubmitButton label="Verify & Create Account" pending={verPending} />
         </form>
 
-        <form action={reqAction} onSubmit={() => setClientError(null)}>
+        <form action={reqAction} onSubmit={() => setClientError(null)} className="space-y-3">
           {hiddenFields()}
+          <OtpCooldown seconds={resendSeconds} />
           <button
             type="submit"
-            disabled={reqPending}
+            disabled={reqPending || verPending || resendSeconds > 0}
             className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-white/15 hover:bg-white/20 disabled:opacity-60 text-white text-sm font-semibold border border-white/20 transition cursor-pointer"
           >
-            {reqPending ? (
+            {verPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Authorizing...
+              </>
+            ) : reqPending ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" /> Sending...
               </>
+            ) : resendSeconds > 0 ? (
+              `Resend code in ${resendSeconds}s`
             ) : (
               "Resend code"
             )}

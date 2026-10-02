@@ -360,8 +360,11 @@ export async function verifySellerOtpAndRegister(
     return { error: friendlyAuthError(authError?.message ?? "Registration failed") };
   }
 
-  const supabase = await createClient();
-  const { data: seller, error: sellerError } = await supabase
+  // This is a trusted server-side provisioning step. The new user is not
+  // signed in yet, so the cookie-backed client would be anonymous and RLS
+  // would reject the insert into public.sellers ("permission denied").
+  // Use the service-role client that was already created for this action.
+  const { data: seller, error: sellerError } = await admin
     .from("sellers")
     .insert({
       reference: sellerRef(),
@@ -381,7 +384,7 @@ export async function verifySellerOtpAndRegister(
     return { error: sellerError?.message ?? "Could not create the seller record." };
   }
 
-  const { error: profileError } = await supabase.from("profiles").upsert(
+  const { error: profileError } = await admin.from("profiles").upsert(
     {
       id: authUser.user.id,
       email,
@@ -393,6 +396,9 @@ export async function verifySellerOtpAndRegister(
     { onConflict: "id" },
   );
   if (profileError) {
+    // Keep retries clean if the profile link cannot be completed.
+    await admin.from("sellers").delete().eq("id", seller.id);
+    await admin.auth.admin.deleteUser(authUser.user.id);
     return { error: profileError.message };
   }
 
