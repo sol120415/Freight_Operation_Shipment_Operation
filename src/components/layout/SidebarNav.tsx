@@ -20,7 +20,6 @@ import type { AppRole } from "@/types";
 interface SidebarNavProps {
   role: AppRole;
   pendingBatchCount: number;
-  unreadNotifications?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -44,7 +43,6 @@ function getActiveHref(pathname: string, hrefs: string[]): string | null {
 export default function SidebarNav({
   role,
   pendingBatchCount,
-  unreadNotifications = 0,
 }: SidebarNavProps) {
   const pathname = usePathname();
 
@@ -178,11 +176,6 @@ export default function SidebarNav({
                     )}
                   >
                     {pendingBatchCount}
-                  </span>
-                )}
-                {item.href === "/notifications" && unreadNotifications > 0 && (
-                  <span className="bg-pink-600 text-white text-[10px] font-black min-w-5 text-center px-1.5 py-0.5 rounded-full">
-                    {unreadNotifications > 99 ? "99+" : unreadNotifications}
                   </span>
                 )}
                 {active && (

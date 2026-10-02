@@ -11,7 +11,6 @@ import {
   Package,
   Warehouse,
   Radar,
-  Bell,
   ScrollText,
   Settings,
   UserCircle,
@@ -57,10 +56,6 @@ export const NAV_ITEMS: NavItem[] = [
     variant: "cta",
   },
   { href: "/track", label: "Track Parcel", icon: Radar, roles: [] },
-  // Notifications stay fully functional via the header bell + /notifications
-  // route — only the admin sidebar entry is removed (seller/customer keep it).
-  { href: "/notifications", label: "Notifications", icon: Bell, roles: ["Seller", "Customer", "Citizen"] },
-
   // ---- Admin only ----
   { href: "/sellers", label: "Sellers", icon: Building2, roles: ["SuperAdmin", "Admin"] },
   { href: "/customers", label: "Customers", icon: Users, roles: ["SuperAdmin", "Admin"] },

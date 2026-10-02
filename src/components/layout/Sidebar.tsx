@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Menu, ShieldCheck, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { AppRole } from "@/types";
@@ -19,20 +19,10 @@ export interface SidebarProps {
   role: AppRole;
   /** Number of carrier batches not yet handed over (manifest badge). */
   pendingBatchCount: number;
-  /** Unread notification count for the bell. */
-  unreadNotifications?: number;
-}
-
-interface BrandProps {
-  readonly role: AppRole;
-}
-
-interface RoleBadgeProps {
-  readonly role: AppRole;
 }
 
 // ---------------------------------------------------------------------------
-// Airship Express — Subsystem V3.1 Sidebar
+// Airship Express sidebar
 // ---------------------------------------------------------------------------
 // Design decisions:
 // - Navigation links (Dashboard, Parcels, Track) use a soft accent: left border
@@ -49,7 +39,6 @@ interface RoleBadgeProps {
 export default function Sidebar({
   role,
   pendingBatchCount,
-  unreadNotifications = 0,
 }: SidebarProps): React.JSX.Element {
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
   const pathname = usePathname();
@@ -91,13 +80,11 @@ export default function Sidebar({
         aria-label="Primary navigation"
         className="hidden lg:flex w-72 bg-slate-900 text-slate-300 flex-col shrink-0 shadow-2xl z-20 app-shell sticky top-0 border-r border-slate-800"
       >
-        <Brand role={role} />
-        <RoleBadge role={role} />
+        <Brand />
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           <SidebarNav
             role={role}
             pendingBatchCount={pendingBatchCount}
-            unreadNotifications={unreadNotifications}
           />
         </div>
         <RealtimeIndicator />
@@ -128,7 +115,7 @@ export default function Sidebar({
           )}
         >
           <div className="flex items-center justify-between pr-3 shrink-0">
-            <Brand role={role} />
+            <Brand />
             <button
               type="button"
               onClick={closeMobile}
@@ -139,13 +126,10 @@ export default function Sidebar({
             </button>
           </div>
 
-          <RoleBadge role={role} />
-
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <SidebarNav
               role={role}
               pendingBatchCount={pendingBatchCount}
-              unreadNotifications={unreadNotifications}
             />
           </div>
 
@@ -160,7 +144,7 @@ export default function Sidebar({
 // Sub-components — typed, single-responsibility
 // ---------------------------------------------------------------------------
 
-function Brand({ role: _role }: BrandProps): React.JSX.Element {
+function Brand(): React.JSX.Element {
   return (
     <div className="px-3 py-3 border-b border-slate-800 flex items-center gap-2.5 shrink-0 overflow-hidden">
       {/* Pink AX — exact user artwork, compact to avoid header overlap */}
@@ -181,27 +165,6 @@ function Brand({ role: _role }: BrandProps): React.JSX.Element {
           <span className="truncate">AIRSHIP</span>
           <span className="text-pink-500 shrink-0">EXPRESS</span>
         </h1>
-        <span className="mt-1 inline-flex text-[9px] uppercase tracking-widest text-pink-300 font-semibold bg-pink-950/50 px-1 py-0.5 rounded border border-pink-900/50 leading-none truncate max-w-full">
-          Subsystem v3.1
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function RoleBadge({ role }: RoleBadgeProps): React.JSX.Element {
-  return (
-    <div className="px-4 py-3 bg-slate-950/30 border-b border-slate-800/80 shrink-0">
-      <div className="flex items-center gap-2.5 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 shadow-sm">
-        <span className="p-1.5 rounded-lg bg-slate-700/60 border border-slate-600/50">
-          <ShieldCheck className="w-3.5 h-3.5 text-pink-400" aria-hidden />
-        </span>
-        <span className="text-xs font-semibold text-white tracking-wide truncate">
-          {role}
-        </span>
-        <span className="ml-auto text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
-          Role
-        </span>
       </div>
     </div>
   );
