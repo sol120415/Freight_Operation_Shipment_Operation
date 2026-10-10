@@ -21,12 +21,16 @@ export default function PickupRequests({
 }) {
   const router = useRouter();
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [actualCounts, setActualCounts] = useState<Record<string, number>>({});
 
   function advance(pickup: PickupRequestWithSeller) {
     const next = NEXT[pickup.status];
     if (!next) return;
     setPendingId(pickup.id);
-    void updatePickupStatus(pickup.id, next).then((res) => {
+    const actual = next === "Received"
+      ? (actualCounts[pickup.id] ?? pickup.actual_parcel_count ?? pickup.expected_parcel_count)
+      : undefined;
+    void updatePickupStatus(pickup.id, next, actual).then((res) => {
       setPendingId(null);
       if (!res.ok) window.alert(res.error ?? "Update failed");
       else router.refresh();
@@ -41,7 +45,7 @@ export default function PickupRequests({
             <th className="text-left px-5 py-3">Ref</th>
             <th className="text-left px-3 py-3">Seller</th>
             <th className="text-left px-3 py-3">Scheduled</th>
-            <th className="text-right px-3 py-3">Parcels</th>
+            <th className="text-right px-3 py-3">Expected / Actual</th>
             <th className="text-left px-3 py-3">Status</th>
             <th className="text-right px-5 py-3">Action</th>
           </tr>
@@ -61,7 +65,27 @@ export default function PickupRequests({
               <td className="px-3 py-3 text-slate-600 dark:text-slate-300">
                 {formatDate(p.scheduled_at)}
               </td>
-              <td className="px-3 py-3 text-right">{p.parcel_count}</td>
+              <td className="px-3 py-3 text-right">
+                <span>{p.expected_parcel_count}</span>
+                <span className="text-slate-400"> / </span>
+                {p.status === "In Transit" ? (
+                  <input
+                    type="number"
+                    min={0}
+                    aria-label={`Actual parcels received for ${p.reference}`}
+                    value={actualCounts[p.id] ?? p.actual_parcel_count ?? p.expected_parcel_count}
+                    onChange={(event) => setActualCounts((current) => ({
+                      ...current,
+                      [p.id]: Number(event.target.value),
+                    }))}
+                    className="w-16 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-right"
+                  />
+                ) : (
+                  <span className={p.actual_parcel_count !== null && p.actual_parcel_count !== p.expected_parcel_count ? "font-bold text-amber-600" : ""}>
+                    {p.actual_parcel_count ?? "—"}
+                  </span>
+                )}
+              </td>
               <td className="px-3 py-3">
                 <StatusBadge status={p.status} />
               </td>

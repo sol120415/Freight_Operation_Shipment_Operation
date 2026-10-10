@@ -13,12 +13,6 @@ import {
 } from "@/lib/validation/schemas";
 import { serverLog } from "@/lib/server/log";
 
-function newRef() {
-  const yr = new Date().getFullYear();
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  return `SELL-${yr}-${rand}`;
-}
-
 /**
  * Admin: create a seller business record WITH a login account.
  * The password is handed to Supabase Auth (bcrypt/argon inside GoTrue) —
@@ -60,7 +54,6 @@ export async function createSellerAccount(
     const { data: seller, error: sellerError } = await supabase
       .from("sellers")
       .insert({
-        reference: newRef(),
         name: form.name,
         business_name: form.businessName || null,
         contact_person: form.contactPerson || null,

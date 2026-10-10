@@ -12,6 +12,9 @@ const shipmentDefaults: Shipment = {
   id: "00000000-0000-4000-8000-000000000000",
   reference: "DEMO-0000",
   tracking_number: "AX-DEMO-0000",
+  external_tracking_number: null,
+  creation_source: "legacy",
+  idempotency_key: null,
   client_name: "Airship Demo Customer",
   shipper: "Airship Demo Seller",
   consignee: "Demo Recipient",
@@ -96,6 +99,7 @@ export const DEMO_SHIPMENTS: Shipment[] = [
     cod_amount: 0,
     created_at: "2026-09-30T14:20:00+08:00",
     updated_at: "2026-10-02T07:45:00+08:00",
+    idempotency_key: null,
   }),
   makeShipment({
     id: "00000000-0000-4000-8000-000000000003",
@@ -239,6 +243,7 @@ export const DEMO_BATCHES: CarrierBatch[] = [
     created_by: null,
     created_at: "2026-10-02T07:00:00+08:00",
     updated_at: "2026-10-02T07:45:00+08:00",
+    idempotency_key: null,
   },
   {
     id: "00000000-0000-4000-8000-000000000302",
@@ -255,6 +260,7 @@ export const DEMO_BATCHES: CarrierBatch[] = [
     created_by: null,
     created_at: "2026-10-01T16:00:00+08:00",
     updated_at: "2026-10-01T16:00:00+08:00",
+    idempotency_key: null,
   },
 ];
 

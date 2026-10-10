@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScanLine, Loader2, CheckCircle2 } from "lucide-react";
 import { quickIntake } from "./actions";
@@ -8,13 +8,13 @@ import { DELIVERY_PLATFORMS } from "@/lib/utils";
 import type { DeliveryPlatform, SellerWithStats } from "@/types";
 
 const INITIAL = {
-  reference: "",
-  trackingNumber: "",
+  externalTrackingNumber: "",
   consignee: "",
   destination: "Metro Manila",
   platform: "J&T Express" as DeliveryPlatform,
   weightKg: 0,
   codAmount: 0,
+  serviceType: "Standard" as "Standard" | "COD",
 };
 
 export default function QuickIntake({
@@ -28,6 +28,7 @@ export default function QuickIntake({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const requestKey = useRef("");
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -38,9 +39,11 @@ export default function QuickIntake({
     setSubmitting(true);
     setError(null);
     setSuccess(null);
+    if (!requestKey.current) requestKey.current = crypto.randomUUID();
     const res = await quickIntake({
       ...form,
       sellerId: sellerId || null,
+      idempotencyKey: requestKey.current,
     });
     setSubmitting(false);
     if (!res.ok) {
@@ -48,6 +51,7 @@ export default function QuickIntake({
       return;
     }
     setSuccess(`Parcel ${res.value.reference} intaken.`);
+    requestKey.current = "";
     setForm(INITIAL);
     router.refresh();
   }
@@ -65,14 +69,10 @@ export default function QuickIntake({
         <ScanLine className="w-4 h-4 text-pink-500" /> Quick Intake Counter
       </h4>
       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-        Scan or type the parcel reference — goes straight to Intake for the
-        selected platform.
+        Enter the parcel details. The internal parcel and tracking numbers are
+        generated automatically after saving.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <label className={label}>Parcel reference *</label>
-          <input className={field} value={form.reference} onChange={(e) => set("reference", e.target.value)} placeholder="PCL-2026-0042" />
-        </div>
         <div>
           <label className={label}>Platform</label>
           <select className={field} value={form.platform} onChange={(e) => set("platform", e.target.value as DeliveryPlatform)}>
@@ -99,17 +99,26 @@ export default function QuickIntake({
           <input className={field} value={form.destination} onChange={(e) => set("destination", e.target.value)} />
         </div>
         <div>
-          <label className={label}>Carrier tracking #</label>
-          <input className={field} value={form.trackingNumber} onChange={(e) => set("trackingNumber", e.target.value)} />
+          <label className={label}>Carrier tracking # (optional)</label>
+          <input className={field} value={form.externalTrackingNumber} onChange={(e) => set("externalTrackingNumber", e.target.value)} />
         </div>
         <div>
           <label className={label}>Weight (kg)</label>
           <input type="number" min={0} step="0.1" className={field} value={form.weightKg || ""} onChange={(e) => set("weightKg", Number(e.target.value))} />
         </div>
         <div>
-          <label className={label}>COD (₱)</label>
-          <input type="number" min={0} step="0.01" className={field} value={form.codAmount || ""} onChange={(e) => set("codAmount", Number(e.target.value))} />
+          <label className={label}>Service type</label>
+          <select className={field} value={form.serviceType} onChange={(e) => set("serviceType", e.target.value as "Standard" | "COD")}>
+            <option value="Standard">Standard</option>
+            <option value="COD">COD</option>
+          </select>
         </div>
+        {form.serviceType === "COD" && (
+          <div>
+            <label className={label}>COD amount (₱) *</label>
+            <input type="number" min={0.01} step="0.01" required className={field} value={form.codAmount || ""} onChange={(e) => set("codAmount", Number(e.target.value))} />
+          </div>
+        )}
       </div>
       {error && <p className="text-[11px] text-rose-600 dark:text-rose-400">{error}</p>}
       {success && (
@@ -119,7 +128,7 @@ export default function QuickIntake({
       )}
       <button
         type="submit"
-        disabled={submitting || !form.reference.trim()}
+        disabled={submitting || !form.destination.trim()}
         className="w-full bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
       >
         {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ScanLine className="w-4 h-4" />}

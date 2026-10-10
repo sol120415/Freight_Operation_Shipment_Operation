@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, PackagePlus, CheckCircle2 } from "lucide-react";
@@ -33,6 +33,18 @@ export default function ParcelForm({
   const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [serviceType, setServiceType] = useState("Standard");
+  const [review, setReview] = useState<{
+    seller: string;
+    consignee: string;
+    destination: string;
+    platform: string;
+    deliveryMethod: string;
+    serviceType: string;
+    weightKg: number;
+    codAmount: number;
+  } | null>(null);
+  const requestKey = useRef("");
   const [created, setCreated] = useState<{
     trackingNumber: string;
     id: string;
@@ -50,6 +62,7 @@ export default function ParcelForm({
       return;
     }
     const payload = {
+      idempotencyKey: requestKey.current || (requestKey.current = crypto.randomUUID()),
       sellerId: isSeller ? undefined : String(formData.get("sellerId") ?? "") || undefined,
       customerEmail: String(formData.get("customerEmail") ?? ""),
       consignee: String(formData.get("consignee") ?? ""),
@@ -57,6 +70,7 @@ export default function ParcelForm({
       destination: String(formData.get("destination") ?? ""),
       origin: String(formData.get("origin") ?? "Branch Hub"),
       platform: String(formData.get("platform") ?? ""),
+      externalTrackingNumber: String(formData.get("externalTrackingNumber") ?? ""),
       deliveryMethod,
       serviceType: String(formData.get("serviceType") ?? "Standard"),
       description: String(formData.get("description") ?? ""),
@@ -66,6 +80,22 @@ export default function ParcelForm({
       codAmount: Number(formData.get("codAmount") ?? 0) || 0,
       expectedDeliveryDate: String(formData.get("expectedDeliveryDate") ?? ""),
     };
+    if (!review) {
+      const sellerId = String(formData.get("sellerId") ?? "");
+      setReview({
+        seller: isSeller
+          ? "Your seller account"
+          : sellers.find((seller) => seller.id === sellerId)?.name ?? "Walk-in / unassigned",
+        consignee: payload.consignee,
+        destination: payload.destination,
+        platform: payload.platform,
+        deliveryMethod: payload.deliveryMethod,
+        serviceType: payload.serviceType,
+        weightKg: payload.weightKg,
+        codAmount: payload.codAmount,
+      });
+      return;
+    }
     startTransition(async () => {
       const res = await createParcel(payload);
       if (res.ok && res.value) {
@@ -102,7 +132,12 @@ export default function ParcelForm({
         )}
         <div className="mt-6 flex items-center justify-center gap-3">
           <button
-            onClick={() => setCreated(null)}
+            onClick={() => {
+              requestKey.current = "";
+              setServiceType("Standard");
+              setReview(null);
+              setCreated(null);
+            }}
             className="border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
           >
             Register Another
@@ -124,6 +159,7 @@ export default function ParcelForm({
         e.preventDefault();
         onSubmit(e.currentTarget);
       }}
+      onChange={() => setReview(null)}
       className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-5"
     >
       <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -217,11 +253,33 @@ export default function ParcelForm({
           <label className={labelCls} htmlFor="serviceType">
             Service Type
           </label>
-          <select id="serviceType" name="serviceType" className={inputCls}>
+          <select
+            id="serviceType"
+            name="serviceType"
+            className={inputCls}
+            value={serviceType}
+            onChange={(event) => setServiceType(event.target.value)}
+          >
             <option>Standard</option>
             <option>COD</option>
             <option>Express</option>
           </select>
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className={labelCls} htmlFor="externalTrackingNumber">
+            External Carrier Tracking Number
+          </label>
+          <input
+            id="externalTrackingNumber"
+            name="externalTrackingNumber"
+            maxLength={80}
+            className={inputCls}
+            placeholder="Optional — number supplied by J&T, Lalamove, or another carrier"
+          />
+          <p className="mt-1 text-[10px] text-slate-400">
+            The system creates its own TRK number. Enter this only when an outside carrier already issued one.
+          </p>
         </div>
 
         <fieldset className="sm:col-span-2">
@@ -253,6 +311,29 @@ export default function ParcelForm({
           />
         </div>
       </section>
+
+      {serviceType === "COD" && (
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50/70 dark:bg-amber-950/20 p-4">
+          <div>
+            <label className={labelCls} htmlFor="codAmount">
+              COD Amount (₱) *
+            </label>
+            <input
+              id="codAmount"
+              name="codAmount"
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
+              className={inputCls}
+              placeholder="0.00"
+            />
+          </div>
+          <p className="self-end pb-2 text-[11px] text-amber-700 dark:text-amber-300">
+            Required for COD parcels so collection and remittance records stay accurate.
+          </p>
+        </section>
+      )}
 
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
         <div>
@@ -316,7 +397,35 @@ export default function ParcelForm({
         </p>
       )}
 
+      {review && (
+        <div className="rounded-xl border border-pink-200 bg-pink-50/70 p-4 text-xs dark:border-pink-900 dark:bg-pink-950/30">
+          <p className="font-bold text-slate-900 dark:text-slate-100">Review before saving</p>
+          <dl className="mt-2 grid grid-cols-1 gap-1 text-slate-600 dark:text-slate-300 sm:grid-cols-2">
+            <div><dt className="inline font-semibold">Seller: </dt><dd className="inline">{review.seller}</dd></div>
+            <div><dt className="inline font-semibold">Platform: </dt><dd className="inline">{review.platform}</dd></div>
+            <div><dt className="inline font-semibold">Recipient: </dt><dd className="inline">{review.consignee}</dd></div>
+            <div><dt className="inline font-semibold">Destination: </dt><dd className="inline">{review.destination}</dd></div>
+            <div><dt className="inline font-semibold">Delivery: </dt><dd className="inline">{review.deliveryMethod}</dd></div>
+            <div><dt className="inline font-semibold">Service: </dt><dd className="inline">{review.serviceType}</dd></div>
+            <div><dt className="inline font-semibold">Weight: </dt><dd className="inline">{review.weightKg.toFixed(2)} kg</dd></div>
+            {review.serviceType === "COD" && (
+              <div><dt className="inline font-semibold">COD: </dt><dd className="inline">₱{review.codAmount.toFixed(2)}</dd></div>
+            )}
+          </dl>
+        </div>
+      )}
+
       <div className="flex items-center justify-end gap-3 pt-2">
+        {review && (
+          <button
+            type="button"
+            onClick={() => setReview(null)}
+            disabled={pending}
+            className="px-4 py-2.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700"
+          >
+            Back
+          </button>
+        )}
         <Link
           href="/parcels"
           className="px-4 py-2.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
@@ -333,7 +442,7 @@ export default function ParcelForm({
           ) : (
             <PackagePlus className="w-4 h-4" />
           )}
-          Register Parcel
+          {pending ? "Saving…" : review ? "Confirm Registration" : "Review Parcel"}
         </button>
       </div>
     </form>

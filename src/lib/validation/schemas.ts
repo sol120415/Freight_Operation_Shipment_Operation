@@ -11,9 +11,13 @@ import { SETTABLE_STATUSES } from "@/lib/parcelWorkflow";
 const positiveNumber = (message: string) =>
   z.number({ message }).nonnegative({ message });
 
+const nonNegativeInteger = (message: string) =>
+  z.number({ message }).int(message).nonnegative({ message });
+
 /** New parcel booking (src/app/(app)/booking). */
 export const bookingSchema = z.object({
-  clientName: z.string().trim().min(2, "Seller / client name is required").max(200),
+  sellerId: z.string().uuid("Select a seller"),
+  idempotencyKey: z.string().uuid(),
   consignee: z.string().trim().min(2, "Recipient name is required").max(200),
   platform: z.enum(DELIVERY_PLATFORMS, {
     message: "Delivery platform is required",
@@ -22,7 +26,15 @@ export const bookingSchema = z.object({
   weightKg: positiveNumber("Weight must be >= 0"),
   codAmount: positiveNumber("COD amount must be >= 0"),
   serviceType: z.string().trim().max(40).default("Standard"),
-  trackingNumber: z.string().trim().max(80).optional().default(""),
+  externalTrackingNumber: z.string().trim().max(80).optional().default(""),
+}).superRefine((value, ctx) => {
+  if (value.serviceType === "COD" && value.codAmount <= 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["codAmount"],
+      message: "Enter a COD amount greater than zero",
+    });
+  }
 });
 export type BookingInput = z.infer<typeof bookingSchema>;
 
@@ -40,8 +52,9 @@ export type SellerInput = z.infer<typeof sellerSchema>;
 /** Schedule a pickup for a seller (src/app/(app)/pickup). */
 export const pickupSchema = z.object({
   sellerId: z.string().uuid(),
+  idempotencyKey: z.string().uuid(),
   scheduledAt: z.string().datetime(),
-  parcelCount: positiveNumber("Parcel count must be >= 0"),
+  expectedParcelCount: nonNegativeInteger("Expected parcel count must be a whole number >= 0"),
   notes: z.string().trim().max(500).optional().default(""),
 });
 export type PickupInput = z.infer<typeof pickupSchema>;
@@ -49,13 +62,18 @@ export type PickupInput = z.infer<typeof pickupSchema>;
 /** Bulk intake: ingest one parcel at a time from a scanning counter. */
 export const parcelIntakeSchema = z.object({
   sellerId: z.string().uuid().nullable().optional(),
-  reference: z.string().trim().min(2, "Parcel reference is required").max(80),
-  trackingNumber: z.string().trim().max(80).optional().default(""),
+  idempotencyKey: z.string().uuid(),
+  externalTrackingNumber: z.string().trim().max(80).optional().default(""),
   consignee: z.string().trim().max(200).optional().default(""),
   destination: z.string().trim().max(200).optional().default("Metro Manila"),
   platform: z.enum(DELIVERY_PLATFORMS),
+  serviceType: z.enum(["Standard", "COD"]).default("Standard"),
   weightKg: positiveNumber("Weight must be >= 0"),
   codAmount: positiveNumber("COD amount must be >= 0"),
+}).superRefine((value, ctx) => {
+  if (value.serviceType === "COD" && value.codAmount <= 0) {
+    ctx.addIssue({ code: "custom", path: ["codAmount"], message: "Enter a COD amount greater than zero" });
+  }
 });
 export type ParcelIntakeInput = z.infer<typeof parcelIntakeSchema>;
 
@@ -63,6 +81,7 @@ export type ParcelIntakeInput = z.infer<typeof parcelIntakeSchema>;
 export const batchCreateSchema = z.object({
   platform: z.enum(DELIVERY_PLATFORMS),
   parcelIds: z.array(z.string().uuid()).min(1, "Select at least one parcel"),
+  idempotencyKey: z.string().uuid(),
 });
 export type BatchCreateInput = z.infer<typeof batchCreateSchema>;
 
@@ -90,6 +109,15 @@ export const cancelBookingSchema = z.object({
 export const pickupStatusSchema = z.object({
   pickupId: z.string().uuid(),
   status: z.enum(PICKUP_STATUSES),
+  actualParcelCount: nonNegativeInteger("Actual parcel count must be a whole number >= 0").optional(),
+}).superRefine((value, ctx) => {
+  if (value.status === "Received" && value.actualParcelCount === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["actualParcelCount"],
+      message: "Enter the number of parcels actually received",
+    });
+  }
 });
 
 /** AI routing request (legacy multimodal engine, kept for the API). */
@@ -127,7 +155,7 @@ export const ingestCrmPoSchema = z.object({
 
 /** House Bill / Receipt (src/app/(app)/waybill). */
 export const bolSchema = z.object({
-  bolNumber: z.string().trim().min(4, "Waybill number is required").max(40),
+  bolNumber: z.string().trim().max(80).optional().default(""),
   bolType: z.enum(["HBL", "MBL"]),
   shipmentId: z.string().uuid().nullable().optional(),
   shipperName: z.string().trim().max(200).default(""),
@@ -139,6 +167,14 @@ export const bolSchema = z.object({
   totalVolumeCbm: positiveNumber("Volume must be >= 0").default(0),
   goodsDescription: z.string().trim().max(2000).default(""),
   freightTerms: z.string().trim().max(40).default("Prepaid"),
+}).superRefine((value, ctx) => {
+  if (value.bolType === "MBL" && value.bolNumber.length < 4) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["bolNumber"],
+      message: "Enter the MBL number issued by the ocean carrier",
+    });
+  }
 });
 export type BolInput = z.infer<typeof bolSchema>;
 
@@ -177,6 +213,7 @@ function todayInManila(): string {
 
 /** Register a new parcel (Seller creates own; staff may pick any seller). */
 export const parcelCreateSchema = z.object({
+  idempotencyKey: z.string().uuid(),
   sellerId: z.string().uuid().optional().nullable(),
   customerEmail: z.string().trim().email().optional().or(z.literal("")).default(""),
   consignee: z.string().trim().min(2, "Recipient name is required").max(200),
@@ -184,6 +221,7 @@ export const parcelCreateSchema = z.object({
   destination: z.string().trim().min(2, "Destination is required").max(200),
   origin: z.string().trim().min(1).max(200).default("Branch Hub"),
   platform: z.enum(DELIVERY_PLATFORMS),
+  externalTrackingNumber: z.string().trim().max(80).optional().default(""),
   /** Pickup or Drop-off — the seller must choose one (server-enforced). */
   deliveryMethod: z.enum(["Pickup", "Drop-off"], {
     message: "Please select Pickup or Drop-off",
@@ -196,8 +234,14 @@ export const parcelCreateSchema = z.object({
   codAmount: positiveNumber("COD amount must be >= 0").default(0),
   expectedDeliveryDate: expectedDeliveryDateSchema.optional().or(z.literal("")).default(""),
 }).superRefine((value, ctx) => {
-  if (!value.expectedDeliveryDate) return;
-  if (value.expectedDeliveryDate < todayInManila()) {
+  if (value.serviceType === "COD" && value.codAmount <= 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["codAmount"],
+      message: "Enter a COD amount greater than zero",
+    });
+  }
+  if (value.expectedDeliveryDate && value.expectedDeliveryDate < todayInManila()) {
     ctx.addIssue({
       code: "custom",
       path: ["expectedDeliveryDate"],

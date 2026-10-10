@@ -11,8 +11,11 @@ export const dynamic = "force-dynamic";
 
 export default async function ManifestPage() {
   await requireRole(["SuperAdmin", "Admin"]);
-  const [intakeParcels, batches] = await Promise.all([
-    listShipments({ status: "Intake", perPage: 100 }),
+  const [eligibleParcels, batches] = await Promise.all([
+    listShipments({
+      status: ["Booked", "Picked Up", "Dropped Off", "Intake", "At Origin Hub"],
+      perPage: 100,
+    }),
     listBatchesWithItems(50),
   ]);
 
@@ -23,17 +26,17 @@ export default async function ManifestPage() {
       <PageHeader
         eyebrow="Manifest & Consolidation"
         title="Courier Manifesting"
-        description="Group Intake parcels by delivery platform into courier manifests, then mark them Ready for handover."
+        description="Filter eligible parcels by platform, destination, or hub, then create a validated courier manifest."
         actions={
           <span className="bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 text-xs font-bold px-3 py-1.5 rounded-full border border-pink-200 dark:border-pink-900 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5" /> {intakeParcels.rows.length} ready to batch
+            <Layers className="w-3.5 h-3.5" /> {eligibleParcels.rows.length} ready to batch
           </span>
         }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-1 lg:sticky lg:top-6">
-          <BatchCreator parcels={intakeParcels.rows} />
+          <BatchCreator parcels={eligibleParcels.rows} />
         </div>
         <div className="lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">

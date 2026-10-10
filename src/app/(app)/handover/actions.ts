@@ -27,86 +27,33 @@ export async function signHandover(
     }
     const supabase = await createClient();
 
-    const { data: batch, error: batchError } = await supabase
-      .from("carrier_batches")
-      .select("id, reference, platform, parcel_count, status")
-      .eq("id", form.batchId)
-      .maybeSingle();
-    if (batchError) return fail(batchError.message);
-    if (!batch) return fail("Batch not found");
-    if (batch.status !== "Ready") {
-      return fail("Only Ready manifests can be handed over");
-    }
-
-    const { data: items } = await supabase
-      .from("carrier_batch_items")
-      .select("shipment_id")
-      .eq("batch_id", batch.id);
-
-    const ids = (items ?? []).map((i) => i.shipment_id);
-    // Idempotent retry: parcels already handed over are skipped.
-    let pendingIds = ids;
-    if (ids.length > 0) {
-      const { data: already } = await supabase
-        .from("shipments")
-        .select("id")
-        .in("id", ids)
-        .eq("status", "Handed Over");
-      const done = new Set((already ?? []).map((p) => p.id));
-      pendingIds = ids.filter((id) => !done.has(id));
-    }
-
-    // Atomic per-parcel handover: tracking event + seller notification.
-    // The RPC also enforces the workflow order (manifested before handover).
-    for (const parcelId of pendingIds) {
-      const { data, error } = await supabase.rpc("update_parcel_status", {
-        p_parcel_id: parcelId,
-        p_status: "Handed Over",
-        p_location: null,
-        p_hub_id: null,
-        p_description: null,
-      });
-      const result = data as { ok: boolean; error?: string } | null;
-      if (error || !result?.ok) {
-        return fail(
-          result?.error ?? error?.message ?? "Handover failed for one or more parcels",
-        );
-      }
-    }
-
-    const { error: updateError } = await supabase
-      .from("carrier_batches")
-      .update({
-        status: "Handed Over",
-        rider_name: form.riderName,
-        rider_phone: form.riderPhone || null,
-        handover_notes: form.notes || null,
-        handed_over_by: profile.id,
-        handed_over_at: new Date().toISOString(),
-      })
-      .eq("id", batch.id);
-    if (updateError) return fail(updateError.message);
-
-    const { error: handoverError } = await supabase.from("handovers").insert({
-      batch_id: batch.id,
-      platform: batch.platform,
-      rider_name: form.riderName,
-      rider_phone: form.riderPhone || null,
-      parcel_count: batch.parcel_count,
-      notes: form.notes || null,
-      handed_over_by: profile.id,
+    const { data, error } = await supabase.rpc("finalize_handover", {
+      p_batch_id: form.batchId,
+      p_rider_name: form.riderName,
+      p_rider_phone: form.riderPhone || null,
+      p_notes: form.notes || null,
     });
-    if (handoverError) return fail(handoverError.message);
+    const result = data as {
+      ok: boolean;
+      error?: string;
+      batch_id?: string;
+      handover_id?: string;
+      duplicate?: boolean;
+    } | null;
+    if (error || !result?.ok || !result.batch_id) {
+      return fail(result?.error ?? error?.message ?? "Handover failed");
+    }
 
     serverLog.info("handover.signHandover", {
-      batchId: batch.id,
-      reference: batch.reference,
+      batchId: result.batch_id,
       rider: form.riderName,
+      actor: profile.id,
+      duplicate: result.duplicate ?? false,
     });
     revalidatePath("/handover");
     revalidatePath("/manifest");
     revalidatePath("/dashboard");
     revalidatePath("/notifications");
-    return ok({ batchId: batch.id });
+    return ok({ batchId: result.batch_id });
   });
 }

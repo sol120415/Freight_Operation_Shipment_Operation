@@ -26,7 +26,7 @@ export default async function SettingsPage() {
           <Setting label="Database" value="Supabase PostgreSQL (Row Level Security enforced)" />
           <Setting label="Authentication" value="Supabase Auth (email + password, bcrypt-hashed)" />
           <Setting label="Roles" value="SUPERADMIN · ADMIN · SELLER · CUSTOMER · CITIZEN" />
-          <Setting label="Tracking scheme" value="Facility/event-based tracking (PKG-YYYY-NNNNNN)" />
+          <Setting label="Tracking scheme" value="Database-generated tracking (TRK-YY-NNNNNN)" />
           <Setting label="Notifications" value="In-app notifications generated on every parcel event" />
           <Setting label="Audit logging" value="Enabled (sellers, shipments, profiles, hubs)" />
           <Setting label="Realtime" value="Supabase Realtime (shipments, tracking logs, notifications)" />

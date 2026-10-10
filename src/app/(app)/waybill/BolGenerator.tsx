@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { createBillOfLading, type BolInput } from "./actions";
 import type { BolType, ParsedBillOfLading, Shipment } from "@/types";
+import { manilaDateISO } from "@/lib/utils";
 
 const EMPTY: BolInput = {
   bolNumber: "",
@@ -48,7 +49,7 @@ export default function BolGenerator({
   // identical (empty) on server and first client render.
   const [issuedDate, setIssuedDate] = useState("");
   useEffect(() => {
-    setIssuedDate(new Date().toISOString().slice(0, 10));
+    setIssuedDate(manilaDateISO());
   }, []);
 
   function set<K extends keyof BolInput>(k: K, v: BolInput[K]) {
@@ -112,6 +113,7 @@ export default function BolGenerator({
       setSaveError(res.error ?? "Save failed");
       return;
     }
+    setForm((current) => ({ ...current, bolNumber: res.value.bolNumber }));
     setSaved(true);
   }
 
@@ -184,7 +186,19 @@ export default function BolGenerator({
             </div>
             <div>
               <label className={label}>BoL number</label>
-              <input className={field} value={form.bolNumber} onChange={(e) => set("bolNumber", e.target.value)} placeholder="HBL-2026-90112" />
+              <input
+                className={field}
+                value={form.bolNumber}
+                readOnly={form.bolType === "HBL"}
+                required={form.bolType === "MBL"}
+                onChange={(e) => set("bolNumber", e.target.value)}
+                placeholder={form.bolType === "HBL" ? "Generated when issued" : "Carrier-issued MBL number"}
+              />
+              <p className="mt-1 text-[10px] text-slate-400">
+                {form.bolType === "HBL"
+                  ? "The system issues the HBL number."
+                  : "Enter the number printed by the ocean carrier."}
+              </p>
             </div>
           </div>
 
@@ -219,11 +233,11 @@ export default function BolGenerator({
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button onClick={save} disabled={saving || !form.bolNumber} className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
+            <button onClick={save} disabled={saving || (form.bolType === "MBL" && !form.bolNumber)} className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Save className="w-4 h-4" />}
               {saved ? "Saved" : "Save BoL"}
             </button>
-            <button onClick={printBol} disabled={!form.bolNumber} className="bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
+            <button onClick={printBol} disabled={!saved || !form.bolNumber} className="bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
               <Printer className="w-4 h-4" /> Print / PDF
             </button>
             {saveError && <span className="text-[11px] text-rose-600 dark:text-rose-400">{saveError}</span>}

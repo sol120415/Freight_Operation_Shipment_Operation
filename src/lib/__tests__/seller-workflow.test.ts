@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   parcelCreateSchema,
   bookingSchema,
+  bolSchema,
+  parcelIntakeSchema,
+  pickupStatusSchema,
   signUpSchema,
   passwordResetConfirmSchema,
 } from "@/lib/validation/schemas";
@@ -16,6 +19,7 @@ import { isValidSellerName, isValidContactNumber, passwordChecks } from "@/lib/s
 import { buildOtpEmail } from "@/lib/otp";
 
 const parcelBase = {
+  idempotencyKey: "00000000-0000-4000-8000-000000000001",
   consignee: "Juan Dela Cruz",
   destination: "Quezon City",
   platform: "J&T Express",
@@ -55,16 +59,63 @@ describe("parcel registration delivery method", () => {
 describe("booking form/server contract", () => {
   it("accepts the fields the booking form actually submits", () => {
     const result = bookingSchema.safeParse({
-      clientName: "TEST Seller Alpha",
+      sellerId: "00000000-0000-4000-8000-000000000002",
+      idempotencyKey: "00000000-0000-4000-8000-000000000003",
       consignee: "TEST Recipient 001",
       platform: "J&T Express",
       destination: "Quezon City",
       weightKg: 0,
       codAmount: 0,
       serviceType: "Standard",
-      trackingNumber: "",
+      externalTrackingNumber: "",
     });
     expect(result.success).toBe(true);
+  });
+
+  it("requires a positive amount for COD bookings", () => {
+    const base = {
+      sellerId: "00000000-0000-4000-8000-000000000002",
+      idempotencyKey: "00000000-0000-4000-8000-000000000003",
+      consignee: "TEST Recipient 001",
+      platform: "J&T Express",
+      destination: "Quezon City",
+      weightKg: 1,
+      serviceType: "COD",
+      externalTrackingNumber: "",
+    } as const;
+
+    expect(bookingSchema.safeParse({ ...base, codAmount: 0 }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...base, codAmount: 500 }).success).toBe(true);
+  });
+});
+
+describe("operational data rules", () => {
+  it("requires the verified parcel count when a pickup is received", () => {
+    const base = {
+      pickupId: "00000000-0000-4000-8000-000000000004",
+      status: "Received" as const,
+    };
+
+    expect(pickupStatusSchema.safeParse(base).success).toBe(false);
+    expect(pickupStatusSchema.safeParse({ ...base, actualParcelCount: 3 }).success).toBe(true);
+  });
+
+  it("requires a positive COD amount during quick intake", () => {
+    const base = {
+      idempotencyKey: "00000000-0000-4000-8000-000000000005",
+      platform: "J&T Express" as const,
+      serviceType: "COD" as const,
+      weightKg: 1,
+    };
+
+    expect(parcelIntakeSchema.safeParse({ ...base, codAmount: 0 }).success).toBe(false);
+    expect(parcelIntakeSchema.safeParse({ ...base, codAmount: 250 }).success).toBe(true);
+  });
+
+  it("generates HBL numbers internally but requires a carrier-issued MBL number", () => {
+    expect(bolSchema.safeParse({ bolType: "HBL", bolNumber: "" }).success).toBe(true);
+    expect(bolSchema.safeParse({ bolType: "MBL", bolNumber: "" }).success).toBe(false);
+    expect(bolSchema.safeParse({ bolType: "MBL", bolNumber: "MAEU1234567" }).success).toBe(true);
   });
 });
 
@@ -187,9 +238,9 @@ describe("admin parcel workflow guard", () => {
   });
 
   it("builds the required seller handover notification text", () => {
-    const msg = handoverMessage("PKG-2026-000001");
+    const msg = handoverMessage("TRK-26-000001");
     expect(msg).toBe(
-      "Your parcel PKG-2026-000001 has been successfully handed over to our delivery partner.",
+      "Your parcel TRK-26-000001 has been successfully handed over to our delivery partner.",
     );
   });
 });

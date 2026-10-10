@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Loader2, CheckCircle2 } from "lucide-react";
 import { createPickup } from "./actions";
@@ -14,21 +14,24 @@ export default function PickupScheduleForm({
   const router = useRouter();
   const [sellerId, setSellerId] = useState(sellers[0]?.id ?? "");
   const [scheduledAt, setScheduledAt] = useState("");
-  const [parcelCount, setParcelCount] = useState(0);
+  const [expectedParcelCount, setExpectedParcelCount] = useState(0);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const requestKey = useRef("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     setSuccess(null);
+    if (!requestKey.current) requestKey.current = crypto.randomUUID();
     const res = await createPickup({
       sellerId,
+      idempotencyKey: requestKey.current,
       scheduledAt: new Date(scheduledAt).toISOString(),
-      parcelCount,
+      expectedParcelCount,
       notes,
     });
     setSubmitting(false);
@@ -37,8 +40,9 @@ export default function PickupScheduleForm({
       return;
     }
     setSuccess(`Pickup ${res.value.reference} scheduled.`);
+    requestKey.current = "";
     setScheduledAt("");
-    setParcelCount(0);
+    setExpectedParcelCount(0);
     setNotes("");
     router.refresh();
   }
@@ -90,8 +94,8 @@ export default function PickupScheduleForm({
             type="number"
             min={0}
             className={field}
-            value={parcelCount || ""}
-            onChange={(e) => setParcelCount(Number(e.target.value))}
+            value={expectedParcelCount || ""}
+            onChange={(e) => setExpectedParcelCount(Number(e.target.value))}
           />
         </div>
       </div>

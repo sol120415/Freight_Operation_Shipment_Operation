@@ -1,6 +1,7 @@
 import { Plus, PackagePlus } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { listShipments } from "@/lib/repos/shipments";
+import { listSellers } from "@/lib/repos/sellers";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import BookingForm from "./BookingForm";
@@ -15,11 +16,10 @@ export default async function BookingPage({
 }) {
   await requireRole(["SuperAdmin", "Admin"]);
   const { q, status } = await searchParams;
-  const { rows } = await listShipments({
-    q,
-    status,
-    perPage: 50,
-  });
+  const [{ rows }, sellers] = await Promise.all([
+    listShipments({ q, status, perPage: 50 }),
+    listSellers(),
+  ]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -36,7 +36,7 @@ export default async function BookingPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
         <div className="lg:col-span-2">
-          <BookingForm />
+          <BookingForm sellers={sellers} />
         </div>
         <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">

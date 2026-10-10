@@ -30,6 +30,9 @@ export type ShipmentStatus =
   | "Out for Delivery"
   | "Delivered"
   | "Delivery Failed"
+  | "Pickup Failed"
+  | "Damaged"
+  | "Lost"
   | "Returned"
   | "Cancelled"
   | "Archived"
@@ -117,7 +120,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          reference: string;
+          reference?: string;
           name: string;
           business_name?: string | null;
           contact_person?: string | null;
@@ -152,6 +155,9 @@ export interface Database {
           scheduled_at: string;
           status: PickupStatus;
           parcel_count: number;
+          expected_parcel_count: number;
+          actual_parcel_count: number | null;
+          idempotency_key: string | null;
           notes: string | null;
           created_by: string | null;
           created_at: string;
@@ -159,11 +165,14 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          reference: string;
+          reference?: string;
           seller_id: string;
           scheduled_at: string;
           status?: PickupStatus;
           parcel_count?: number;
+          expected_parcel_count?: number;
+          actual_parcel_count?: number | null;
+          idempotency_key?: string | null;
           notes?: string | null;
           created_by?: string | null;
           created_at?: string;
@@ -187,6 +196,9 @@ export interface Database {
           id: string;
           reference: string;
           tracking_number: string | null;
+          external_tracking_number: string | null;
+          creation_source: string;
+          idempotency_key: string | null;
           client_name: string;
           shipper: string | null;
           consignee: string | null;
@@ -233,8 +245,11 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          reference: string;
+          reference?: string;
           tracking_number?: string | null;
+          external_tracking_number?: string | null;
+          creation_source?: string;
+          idempotency_key?: string | null;
           client_name: string;
           shipper?: string | null;
           consignee?: string | null;
@@ -442,6 +457,10 @@ export interface Database {
           goods_description: string | null;
           freight_terms: string | null;
           issued_date: string | null;
+          document_version: number;
+          issued_by: string | null;
+          approved_by: string | null;
+          finalized_at: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -462,6 +481,10 @@ export interface Database {
           goods_description?: string | null;
           freight_terms?: string | null;
           issued_date?: string | null;
+          document_version?: number;
+          issued_by?: string | null;
+          approved_by?: string | null;
+          finalized_at?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -617,6 +640,7 @@ export interface Database {
           plan_id: string;
           shipment_id: string;
           sequence_no: number;
+          status_before_manifest: ShipmentStatus | null;
           created_at: string;
         };
         Insert: {
@@ -624,6 +648,7 @@ export interface Database {
           plan_id: string;
           shipment_id: string;
           sequence_no?: number;
+          status_before_manifest?: ShipmentStatus | null;
           created_at?: string;
         };
         Update: Partial<
@@ -662,10 +687,11 @@ export interface Database {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          idempotency_key: string | null;
         };
         Insert: {
           id?: string;
-          reference: string;
+          reference?: string;
           platform: DeliveryPlatform;
           status?: BatchStatus;
           parcel_count?: number;
@@ -678,6 +704,7 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          idempotency_key?: string | null;
         };
         Update: Partial<
           Database["public"]["Tables"]["carrier_batches"]["Insert"]
@@ -759,6 +786,62 @@ export interface Database {
             columns: ["batch_id"];
             isOneToOne: false;
             referencedRelation: "carrier_batches";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      handover_items: {
+        Row: {
+          id: string;
+          handover_id: string;
+          parcel_id: string | null;
+          parcel_reference: string;
+          tracking_number: string | null;
+          seller_id: string | null;
+          seller_name: string | null;
+          consignee: string | null;
+          destination: string | null;
+          weight_kg: number;
+          cod_amount: number;
+          status_at_handover: ShipmentStatus;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          handover_id: string;
+          parcel_id?: string | null;
+          parcel_reference: string;
+          tracking_number?: string | null;
+          seller_id?: string | null;
+          seller_name?: string | null;
+          consignee?: string | null;
+          destination?: string | null;
+          weight_kg?: number;
+          cod_amount?: number;
+          status_at_handover: ShipmentStatus;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["handover_items"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "handover_items_handover_id_fkey";
+            columns: ["handover_id"];
+            isOneToOne: false;
+            referencedRelation: "handovers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "handover_items_parcel_id_fkey";
+            columns: ["parcel_id"];
+            isOneToOne: false;
+            referencedRelation: "shipments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "handover_items_seller_id_fkey";
+            columns: ["seller_id"];
+            isOneToOne: false;
+            referencedRelation: "sellers";
             referencedColumns: ["id"];
           },
         ];
@@ -1019,10 +1102,73 @@ export interface Database {
         Args: Record<string, never>;
         Returns: string;
       };
+      next_seller_reference: { Args: Record<string, never>; Returns: string };
+      next_pickup_reference: { Args: Record<string, never>; Returns: string };
+      next_manifest_reference: { Args: Record<string, never>; Returns: string };
+      next_hbl_number: { Args: Record<string, never>; Returns: string };
+      create_parcel: {
+        Args: {
+          p_source: string;
+          p_idempotency_key: string;
+          p_consignee: string;
+          p_destination: string;
+          p_platform: string;
+          p_delivery_method: string;
+          p_seller_id?: string | null;
+          p_customer_email?: string | null;
+          p_client_name?: string | null;
+          p_origin?: string;
+          p_initial_status?: string;
+          p_service_type?: string;
+          p_weight_kg?: number;
+          p_cod_amount?: number;
+          p_shipping_fee?: number | null;
+          p_description?: string | null;
+          p_dimensions?: string | null;
+          p_recipient_phone?: string | null;
+          p_expected_delivery_date?: string | null;
+          p_external_tracking_number?: string | null;
+        };
+        Returns: Record<string, unknown>;
+      };
+      create_manifest: {
+        Args: {
+          p_platform: string;
+          p_parcel_ids: string[];
+          p_idempotency_key: string;
+        };
+        Returns: Record<string, unknown>;
+      };
+      mark_manifest_ready: {
+        Args: { p_batch_id: string };
+        Returns: Record<string, unknown>;
+      };
+      release_manifest: {
+        Args: { p_batch_id: string };
+        Returns: Record<string, unknown>;
+      };
+      finalize_handover: {
+        Args: {
+          p_batch_id: string;
+          p_rider_name: string;
+          p_rider_phone?: string | null;
+          p_notes?: string | null;
+        };
+        Returns: Record<string, unknown>;
+      };
       update_parcel_status: {
         Args: {
           p_parcel_id: string;
           p_status: string;
+          p_location?: string | null;
+          p_hub_id?: string | null;
+          p_description?: string | null;
+        };
+        Returns: { ok: boolean; error?: string | null };
+      };
+      update_parcel_location: {
+        Args: {
+          p_parcel_id: string;
           p_location?: string | null;
           p_hub_id?: string | null;
           p_description?: string | null;

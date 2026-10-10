@@ -15,6 +15,16 @@ import { DEFAULT_CURRENCY } from "@/lib/locale";
 const LOCALE = "en-US";
 const TIME_ZONE = "Asia/Manila";
 
+/** Calendar date in the Philippine timezone, safe around UTC midnight. */
+export function manilaDateISO(value: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
+}
+
 export function cn(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(" ");
 }
@@ -96,6 +106,9 @@ export function statusBadgeClass(status: ShipmentStatus | string): string {
     case "Received":
       return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300";
     case "Delivery Failed":
+    case "Pickup Failed":
+    case "Damaged":
+    case "Lost":
     case "Delayed":
     case "Rejected":
     case "No Show":

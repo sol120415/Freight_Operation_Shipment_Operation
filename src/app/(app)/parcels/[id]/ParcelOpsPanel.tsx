@@ -37,6 +37,8 @@ export default function ParcelOpsPanel({
   const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [statusLocationMode, setStatusLocationMode] = useState<"hub" | "outside">("hub");
+  const [moveLocationMode, setMoveLocationMode] = useState<"hub" | "outside">("hub");
 
   const nextStatuses = allowedNextStatuses(currentStatus);
   const options = [...new Set([currentStatus, ...nextStatuses])];
@@ -128,24 +130,28 @@ export default function ParcelOpsPanel({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1" htmlFor="ops-hub">
-              Facility / Hub
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1" htmlFor="ops-location-mode">
+              Location type
             </label>
-            <select id="ops-hub" name="hubId" defaultValue={currentHubId ?? ""} className={inputCls}>
-              <option value="">— none —</option>
-              {hubs.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.name}
-                </option>
-              ))}
+            <select id="ops-location-mode" value={statusLocationMode} onChange={(event) => setStatusLocationMode(event.target.value as "hub" | "outside")} className={inputCls}>
+              <option value="hub">Registered hub</option>
+              <option value="outside">Outside a registered hub</option>
             </select>
           </div>
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1" htmlFor="ops-location">
-              Or free-text location
-            </label>
-            <input id="ops-location" name="location" className={inputCls} placeholder="e.g. Along NLEX, Bulacan" />
-          </div>
+          {statusLocationMode === "hub" ? (
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1" htmlFor="ops-hub">Facility / Hub</label>
+              <select id="ops-hub" name="hubId" defaultValue={currentHubId ?? ""} className={inputCls}>
+                <option value="">— select hub —</option>
+                {hubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1" htmlFor="ops-location">Verified outside location</label>
+              <input id="ops-location" name="location" required className={inputCls} placeholder="e.g. Along NLEX, Bulacan" />
+            </div>
+          )}
         </div>
         <input
           name="description"
@@ -167,15 +173,18 @@ export default function ParcelOpsPanel({
           <MapPin className="w-3 h-3" /> Move between facilities
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <select name="locHubId" defaultValue="" className={inputCls}>
-            <option value="">— none —</option>
-            {hubs.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.name}
-              </option>
-            ))}
+          <select value={moveLocationMode} onChange={(event) => setMoveLocationMode(event.target.value as "hub" | "outside")} className={inputCls}>
+            <option value="hub">Registered hub</option>
+            <option value="outside">Outside a registered hub</option>
           </select>
-          <input name="locText" className={inputCls} placeholder="Free-text location" />
+          {moveLocationMode === "hub" ? (
+            <select name="locHubId" defaultValue="" required className={inputCls}>
+              <option value="">— select hub —</option>
+              {hubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          ) : (
+            <input name="locText" required className={inputCls} placeholder="Verified outside location" />
+          )}
         </div>
         <button
           type="submit"

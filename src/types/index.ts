@@ -24,6 +24,7 @@ export type CarrierBatch =
 export type CarrierBatchItem =
   Database["public"]["Tables"]["carrier_batch_items"]["Row"];
 export type Handover = Database["public"]["Tables"]["handovers"]["Row"];
+export type HandoverItem = Database["public"]["Tables"]["handover_items"]["Row"];
 export type Hub = Database["public"]["Tables"]["hubs"]["Row"];
 export type AiTrainingExample =
   Database["public"]["Tables"]["ai_training_examples"]["Row"];

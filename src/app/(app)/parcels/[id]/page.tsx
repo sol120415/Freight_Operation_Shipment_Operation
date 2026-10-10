@@ -24,6 +24,7 @@ import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
 import { isDemoMode } from "@/lib/demoMode";
 import ParcelOpsPanel from "./ParcelOpsPanel";
 import TrackingLinkCard from "./TrackingLinkCard";
+import ParcelQrLabel from "@/components/parcels/ParcelQrLabel";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +151,12 @@ export default async function ParcelDetailPage({
               )}
             </dl>
           </div>
+
+          <ParcelQrLabel
+            trackingNumber={parcel.tracking_number ?? parcel.reference}
+            reference={parcel.reference}
+            destination={parcel.destination}
+          />
 
           {staffOps && hubs.length >= 0 && (
             <ParcelOpsPanel

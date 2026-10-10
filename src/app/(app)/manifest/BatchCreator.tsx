@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Layers, Loader2, CheckCircle2 } from "lucide-react";
+import { Layers, Loader2, CheckCircle2, Search } from "lucide-react";
 import { createBatch } from "./actions";
 import { DELIVERY_PLATFORMS } from "@/lib/utils";
 import type { DeliveryPlatform, Shipment } from "@/types";
@@ -15,9 +15,11 @@ export default function BatchCreator({
   const router = useRouter();
   const [platform, setPlatform] = useState<DeliveryPlatform>("J&T Express");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const requestKey = useRef("");
 
   const byPlatform = new Map<string, Shipment[]>();
   for (const p of parcels) {
@@ -35,28 +37,46 @@ export default function BatchCreator({
     });
   }
 
-  function selectAll() {
-    setSelected(new Set((byPlatform.get(platform) ?? []).map((p) => p.id)));
-  }
-
   async function submit() {
     const ids = Array.from(selected);
     if (!ids.length) return;
     setSubmitting(true);
     setError(null);
     setSuccess(null);
-    const res = await createBatch({ platform, parcelIds: ids });
+    if (!requestKey.current) requestKey.current = crypto.randomUUID();
+    const res = await createBatch({
+      platform,
+      parcelIds: ids,
+      idempotencyKey: requestKey.current,
+    });
     setSubmitting(false);
     if (!res.ok) {
       setError(res.error ?? "Batch creation failed");
       return;
     }
     setSuccess(`Manifest ${res.value.reference} created (${ids.length} parcels).`);
+    requestKey.current = "";
     setSelected(new Set());
     router.refresh();
   }
 
-  const pool = byPlatform.get(platform) ?? [];
+  const term = filter.trim().toLowerCase();
+  const pool = (byPlatform.get(platform) ?? []).filter((parcel) => {
+    if (!term) return true;
+    return [
+      parcel.reference,
+      parcel.tracking_number,
+      parcel.destination,
+      parcel.current_location,
+      parcel.consignee,
+    ].some((value) => value?.toLowerCase().includes(term));
+  });
+  const selectedParcels = parcels.filter((parcel) => selected.has(parcel.id));
+  const selectedWeight = selectedParcels.reduce((sum, parcel) => sum + Number(parcel.weight_kg), 0);
+
+  function selectAll() {
+    setSelected(new Set(pool.map((p) => p.id)));
+  }
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -65,7 +85,7 @@ export default function BatchCreator({
           <Layers className="w-4 h-4 text-pink-500" /> New Manifest
         </h4>
         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-          Pick a platform — only its Intake parcels can be batched together.
+          Select one platform, then narrow parcels by destination, hub, or reference.
         </p>
       </div>
 
@@ -90,8 +110,19 @@ export default function BatchCreator({
           </select>
         </div>
 
+        <label className="relative block">
+          <span className="sr-only">Filter eligible parcels</span>
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+          <input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder="Filter destination, hub, or reference"
+            className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
+          />
+        </label>
+
         <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-          <span>{selected.size} selected</span>
+          <span>{selected.size} selected · {selectedWeight.toFixed(2)} kg</span>
           <button
             onClick={selectAll}
             className="font-bold text-pink-600 dark:text-pink-400 hover:underline"
@@ -103,7 +134,7 @@ export default function BatchCreator({
         <div className="max-h-72 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
           {pool.length === 0 && (
             <p className="p-4 text-[11px] text-slate-400">
-              No Intake parcels for this platform yet.
+              No eligible parcels match this platform and filter.
             </p>
           )}
           {pool.map((p) => (
@@ -123,6 +154,10 @@ export default function BatchCreator({
                 </span>
                 <span className="text-slate-500 dark:text-slate-400">
                   {p.consignee ?? p.client_name} → {p.destination}
+                </span>
+                <span className="block text-[10px] text-slate-400">
+                  {p.status} · {Number(p.weight_kg).toFixed(2)} kg
+                  {p.current_location ? ` · ${p.current_location}` : ""}
                 </span>
               </span>
             </label>

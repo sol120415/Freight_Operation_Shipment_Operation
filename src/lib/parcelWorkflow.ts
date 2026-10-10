@@ -21,8 +21,13 @@ export const PARCEL_WORKFLOW: ShipmentStatus[] = [
 
 /** Exception / terminal-negative statuses shown inline on the timeline. */
 export const PARCEL_EXCEPTION_STATUSES: ShipmentStatus[] = [
+  "Pickup Failed",
   "Delivery Failed",
+  "Damaged",
+  "Lost",
   "Returned",
+  "Delayed",
+  "Customs Hold",
   "Cancelled",
 ];
 
@@ -152,8 +157,27 @@ export function handoverMessage(trackingNumber: string, location?: string | null
 }
 
 function isTerminal(status: string): boolean {
-  return status === "Delivered" || status === "Cancelled";
+  return ["Delivered", "Cancelled", "Returned", "Lost"].includes(status);
 }
+
+const ALLOWED_TRANSITIONS: Record<string, ShipmentStatus[]> = {
+  Registered: ["Booked", "Pickup Scheduled", "Dropped Off", "Intake", "Cancelled", "Pickup Failed"],
+  Booked: ["Pickup Scheduled", "Picked Up", "Dropped Off", "Intake", "At Origin Hub", "Batched", "Cancelled", "Pickup Failed"],
+  "Pickup Scheduled": ["Picked Up", "Pickup Failed", "Cancelled"],
+  "Pickup Failed": ["Pickup Scheduled", "Cancelled"],
+  "Picked Up": ["Booked", "At Origin Hub", "Intake", "Damaged", "Lost", "Cancelled"],
+  "Dropped Off": ["Booked", "At Origin Hub", "Intake", "Damaged", "Lost", "Cancelled"],
+  Intake: ["Booked", "At Origin Hub", "Batched", "Damaged", "Lost", "Cancelled"],
+  "At Origin Hub": ["Booked", "Batched", "Damaged", "Lost", "Cancelled"],
+  Batched: ["Handed Over", "Damaged", "Lost", "Cancelled"],
+  "Handed Over": ["In Transit", "Delivery Failed", "Damaged", "Lost", "Returned"],
+  "In Transit": ["At Destination Hub", "Out for Delivery", "Delivery Failed", "Delayed", "Customs Hold", "Damaged", "Lost", "Returned"],
+  Delayed: ["In Transit", "At Destination Hub", "Out for Delivery", "Damaged", "Lost", "Returned"],
+  "Customs Hold": ["In Transit", "Returned", "Cancelled"],
+  "At Destination Hub": ["Out for Delivery", "Delivery Failed", "Damaged", "Lost", "Returned"],
+  "Out for Delivery": ["Delivered", "Delivery Failed", "Damaged", "Lost", "Returned"],
+  "Delivery Failed": ["Out for Delivery", "Returned", "Cancelled"],
+};
 
 /**
  * Client-side mirror of the database workflow guard. Returns null when the
@@ -166,31 +190,9 @@ export function transitionError(from: string, to: string): string | null {
   if (isTerminal(from)) {
     return `${from} parcels are final and cannot be changed`;
   }
-  if (to === "Batched" && from === "Registered") {
-    return "Parcel must be received (pickup / drop-off) or booked before it can be manifested";
-  }
-  if (to === "Handed Over" && from === "Registered") {
-    return "Parcel must be received, booked and manifested before handover";
-  }
-  if (
-    ["In Transit", "At Destination Hub", "Out for Delivery", "Delivered"].includes(to) &&
-    !["Handed Over", "In Transit", "At Destination Hub", "Out for Delivery", "Delivered"].includes(from)
-  ) {
-    return "Parcel must be handed over to the delivery partner before it can move into transit";
-  }
-  if (
-    to === "Delivered" &&
-    !["Handed Over", "In Transit", "At Destination Hub", "Out for Delivery"].includes(from)
-  ) {
-    return "Parcel can only be delivered after handover into the delivery network";
-  }
-  if (
-    ["Registered", "Booked", "Pickup Scheduled", "Picked Up", "Dropped Off", "Intake", "At Origin Hub", "Batched", "Handed Over"].includes(to) &&
-    ["In Transit", "At Destination Hub", "Out for Delivery", "Delivered"].includes(from)
-  ) {
-    return `Parcel has already left the hub and cannot be moved back to ${to}`;
-  }
-  return null;
+  return ALLOWED_TRANSITIONS[from]?.includes(to as ShipmentStatus)
+    ? null
+    : `Transition from ${from} to ${to} is not allowed`;
 }
 
 export function isAllowedTransition(from: string, to: string): boolean {

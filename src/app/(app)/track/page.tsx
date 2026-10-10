@@ -6,6 +6,7 @@ import TrackingTimeline from "@/components/parcels/TrackingTimeline";
 import StatusBadge from "@/components/ui/StatusBadge";
 import PageHeader from "@/components/ui/PageHeader";
 import { formatDateTime } from "@/lib/utils";
+import ParcelScanner from "@/components/parcels/ParcelScanner";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Track Parcel — Airship Express" };
@@ -30,7 +31,7 @@ export default async function TrackPage({
       <PageHeader
         eyebrow="Parcel Tracking"
         title="Track Your Parcel"
-        description="Enter a tracking number (e.g. PKG-2026-000001) to see where your parcel is right now."
+        description="Enter a tracking number (e.g. TRK-26-000001) to see where your parcel is right now."
       />
 
       <form
@@ -42,7 +43,7 @@ export default async function TrackPage({
             name="q"
             defaultValue={term}
             required
-            placeholder="PKG-2026-000123"
+            placeholder="TRK-26-000123"
             className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all"
           />
           <button
@@ -54,6 +55,8 @@ export default async function TrackPage({
           </button>
         </div>
       </form>
+
+      <ParcelScanner />
 
       {term && !parcel && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-10 text-center">

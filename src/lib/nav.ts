@@ -16,6 +16,7 @@ import {
   UserCircle,
   Truck,
   Network,
+  TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
 
@@ -64,6 +65,7 @@ export const NAV_ITEMS: NavItem[] = [
   // ---- Legacy operations suite (admin) ----
   { href: "/pickup", label: "Pickup & Intake", icon: PackageSearch, roles: ["SuperAdmin", "Admin"] },
   { href: "/booking", label: "Shipment Bookings", icon: PackagePlus, roles: ["SuperAdmin", "Admin"] },
+  { href: "/exceptions", label: "Exception Monitor", icon: TriangleAlert, roles: ["SuperAdmin", "Admin"], badge: { text: "live", kind: "live" } },
   {
     href: "/manifest",
     label: "Manifest & Consolidation",
@@ -135,8 +137,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Operations Hub",
     icon: Truck,
     roles: ["SuperAdmin", "Admin"],
-    hrefs: ["/pickup", "/booking", "/manifest", "/handover", "/waybill"],
-    description: "Pickup → Booking → Manifest → Handover → Waybill",
+    hrefs: ["/pickup", "/booking", "/manifest", "/handover", "/waybill", "/exceptions"],
+    description: "Pickup → Booking → Manifest → Handover → Exceptions",
   },
   {
     id: "directory",

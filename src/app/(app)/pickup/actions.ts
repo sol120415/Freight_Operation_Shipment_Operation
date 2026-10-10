@@ -12,12 +12,6 @@ import {
 } from "@/lib/validation/schemas";
 import { serverLog } from "@/lib/server/log";
 
-function newRef(prefix: string) {
-  const yr = new Date().getFullYear();
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  return `${prefix}-${yr}-${rand}`;
-}
-
 /** Register a recurring seller at the hub. */
 export async function createSeller(
   input: unknown,
@@ -28,7 +22,6 @@ export async function createSeller(
     const { data, error } = await supabase
       .from("sellers")
       .insert({
-        reference: newRef("SEL"),
         name: form.name,
         contact_person: form.contactPerson || null,
         phone: form.phone || null,
@@ -56,11 +49,12 @@ export async function createPickup(
     const { data, error } = await supabase
       .from("pickup_requests")
       .insert({
-        reference: newRef("PUP"),
         seller_id: form.sellerId,
         scheduled_at: form.scheduledAt,
         status: "Scheduled",
-        parcel_count: form.parcelCount,
+        parcel_count: form.expectedParcelCount,
+        expected_parcel_count: form.expectedParcelCount,
+        idempotency_key: form.idempotencyKey,
         notes: form.notes || null,
         created_by: profile.id,
       })
@@ -78,16 +72,21 @@ export async function createPickup(
 export async function updatePickupStatus(
   pickupId: string,
   status: string,
+  actualParcelCount?: number,
 ): Promise<ActionResult> {
   return runAction("pickup.updatePickupStatus", pickupStatusSchema, {
     pickupId,
     status,
-  }, async ({ status: s }) => {
+    actualParcelCount,
+  }, async ({ status: s, actualParcelCount: actual }) => {
     await requireRole(["SuperAdmin", "Admin"]);
     const supabase = await createClient();
     const { error } = await supabase
 .from("pickup_requests")
-        .update({ status: s })
+        .update({
+          status: s,
+          ...(s === "Received" ? { actual_parcel_count: actual } : {}),
+        })
         .eq("id", pickupId);
       if (error) return fail(error.message);
       revalidatePath("/pickup");
@@ -105,30 +104,37 @@ export async function quickIntake(
   input: unknown,
 ): Promise<ActionResult<{ reference: string }>> {
   return runAction("pickup.quickIntake", parcelIntakeSchema, input, async (form) => {
-    const profile = await requireRole(["SuperAdmin", "Admin"]);
+    await requireRole(["SuperAdmin", "Admin"]);
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("shipments")
-      .insert({
-        reference: form.reference,
-        tracking_number: form.trackingNumber || `TRK-HUB-${Math.floor(10000 + Math.random() * 90000)}`,
-        client_name: "Walk-in Seller",
-        consignee: form.consignee || null,
-        origin: "Branch Hub",
-        destination: form.destination,
-        status: "Intake",
-        platform: form.platform,
-        weight_kg: form.weightKg,
-        cod_amount: form.codAmount,
-        seller_id: form.sellerId || null,
-        current_location: "Branch Hub",
-        progress: 10,
-        created_by: profile.id,
-      })
-      .select("id, reference")
-      .single();
-    if (error) return fail(error.message);
+    const { data, error } = await supabase.rpc("create_parcel", {
+      p_source: "quick_intake",
+      p_idempotency_key: form.idempotencyKey,
+      p_seller_id: form.sellerId || null,
+      p_consignee: form.consignee || "Walk-in Recipient",
+      p_destination: form.destination,
+      p_platform: form.platform,
+      p_delivery_method: "Drop-off",
+      p_origin: "Branch Hub",
+      p_initial_status: "Intake",
+      p_service_type: form.serviceType,
+      p_weight_kg: form.weightKg,
+      p_cod_amount: form.codAmount,
+      p_external_tracking_number: form.externalTrackingNumber || null,
+    });
+    const result = data as {
+      ok: boolean;
+      error?: string;
+      reference?: string;
+      duplicate?: boolean;
+    } | null;
+    if (error || !result?.ok || !result.reference) {
+      return fail(result?.error ?? error?.message ?? "Intake failed");
+    }
+    serverLog.info("pickup.quickIntake", {
+      reference: result.reference,
+      duplicate: result.duplicate ?? false,
+    });
     revalidatePath("/pickup");
-    return ok({ reference: data.reference });
+    return ok({ reference: result.reference });
   });
 }

@@ -239,12 +239,6 @@ export async function signOut() {
 // never stored as plain text anywhere.
 // ---------------------------------------------------------------------------
 
-function sellerRef() {
-  const yr = new Date().getFullYear();
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  return `SELL-${yr}-${rand}`;
-}
-
 /**
  * Step 1: validate the full seller form, reject duplicate emails, then issue
  * a 6-digit OTP to the address (10-minute expiry, 5 attempts, resend after
@@ -367,7 +361,6 @@ export async function verifySellerOtpAndRegister(
   const { data: seller, error: sellerError } = await admin
     .from("sellers")
     .insert({
-      reference: sellerRef(),
       name: input.fullName.trim(),
       business_name: input.companyName.trim(),
       phone: input.contactNumber.trim(),

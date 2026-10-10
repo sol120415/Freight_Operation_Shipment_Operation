@@ -6,7 +6,7 @@ import { isDemoMode } from "@/lib/demoMode";
 
 export interface ShipmentQuery {
   q?: string;
-  status?: string;
+  status?: string | string[];
   platform?: string;
   includeArchived?: boolean;
   page?: number;
@@ -34,7 +34,10 @@ export const listShipments = cache(
     if (await isDemoMode()) {
       const term = opts.q?.trim().toLowerCase();
       const filtered = DEMO_SHIPMENTS.filter((shipment) => {
-        if (opts.status && shipment.status !== opts.status) return false;
+        if (opts.status) {
+          const statuses = Array.isArray(opts.status) ? opts.status : [opts.status];
+          if (!statuses.includes(shipment.status)) return false;
+        }
         if (opts.platform && shipment.platform !== opts.platform) return false;
         if (!term) return true;
         return [
@@ -56,7 +59,11 @@ export const listShipments = cache(
 
     let query = supabase.from("shipments").select("*", { count: "exact" });
     if (!opts.includeArchived) query = query.is("archived_at", null);
-    if (opts.status) query = query.eq("status", opts.status as Shipment["status"]);
+    if (opts.status) {
+      query = Array.isArray(opts.status)
+        ? query.in("status", opts.status as Shipment["status"][])
+        : query.eq("status", opts.status as Shipment["status"]);
+    }
     if (opts.platform) {
       query = query.eq("platform", opts.platform as Shipment["platform"]);
     }
