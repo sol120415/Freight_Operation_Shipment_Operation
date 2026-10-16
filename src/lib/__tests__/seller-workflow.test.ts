@@ -7,6 +7,8 @@ import {
   pickupStatusSchema,
   signUpSchema,
   passwordResetConfirmSchema,
+  freightPlanSchema,
+  freightConsolidationSchema,
 } from "@/lib/validation/schemas";
 import {
   isAllowedTransition,
@@ -112,10 +114,55 @@ describe("operational data rules", () => {
     expect(parcelIntakeSchema.safeParse({ ...base, codAmount: 250 }).success).toBe(true);
   });
 
-  it("generates HBL numbers internally but requires a carrier-issued MBL number", () => {
+  it("allows automatic HBL and MBL generation with optional carrier override", () => {
     expect(bolSchema.safeParse({ bolType: "HBL", bolNumber: "" }).success).toBe(true);
-    expect(bolSchema.safeParse({ bolType: "MBL", bolNumber: "" }).success).toBe(false);
+    expect(bolSchema.safeParse({ bolType: "MBL", bolNumber: "" }).success).toBe(true);
     expect(bolSchema.safeParse({ bolType: "MBL", bolNumber: "MAEU1234567" }).success).toBe(true);
+  });
+});
+
+describe("freight planning validation", () => {
+  const plan = {
+    origin: "Manila Hub",
+    destination: "Cebu City",
+    transportMode: "Ocean",
+    incoterms: "FOB",
+    routeName: "Manila to Cebu",
+    carrierName: "Demo Carrier",
+    transitTimeDays: 2,
+    estimatedCostPHP: 25000,
+    co2ReductionPercent: 12,
+    riskScore: "Low",
+    keyAdvantage: "Direct sailing",
+    maxWeightKg: 20000,
+    maxVolumeCbm: 60,
+    shipmentIds: [],
+  } as const;
+
+  it("accepts a complete route plan and rejects invalid capacity", () => {
+    expect(freightPlanSchema.safeParse(plan).success).toBe(true);
+    expect(
+      freightPlanSchema.safeParse({ ...plan, maxWeightKg: 0 }).success,
+    ).toBe(false);
+  });
+
+  it("requires at least one shipment for consolidation", () => {
+    const consolidation = {
+      containerType: "40ft High Cube Container",
+      loadType: "LCL",
+      maxVolumeCbm: 60,
+      maxWeightKg: 20000,
+      origin: "Manila Hub",
+      destination: "Cebu City",
+      shipmentIds: [],
+    } as const;
+    expect(freightConsolidationSchema.safeParse(consolidation).success).toBe(false);
+    expect(
+      freightConsolidationSchema.safeParse({
+        ...consolidation,
+        shipmentIds: ["00000000-0000-4000-8000-000000000001"],
+      }).success,
+    ).toBe(true);
   });
 });
 

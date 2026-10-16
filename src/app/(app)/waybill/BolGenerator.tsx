@@ -190,14 +190,13 @@ export default function BolGenerator({
                 className={field}
                 value={form.bolNumber}
                 readOnly={form.bolType === "HBL"}
-                required={form.bolType === "MBL"}
                 onChange={(e) => set("bolNumber", e.target.value)}
-                placeholder={form.bolType === "HBL" ? "Generated when issued" : "Carrier-issued MBL number"}
+                placeholder={form.bolType === "HBL" ? "Generated when issued" : "Generated when issued (or enter carrier number)"}
               />
               <p className="mt-1 text-[10px] text-slate-400">
                 {form.bolType === "HBL"
                   ? "The system issues the HBL number."
-                  : "Enter the number printed by the ocean carrier."}
+                  : "Leave blank to generate an MBL, or enter a carrier-issued number."}
               </p>
             </div>
           </div>
@@ -233,7 +232,7 @@ export default function BolGenerator({
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button onClick={save} disabled={saving || (form.bolType === "MBL" && !form.bolNumber)} className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
+            <button onClick={save} disabled={saving} className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Save className="w-4 h-4" />}
               {saved ? "Saved" : "Save BoL"}
             </button>

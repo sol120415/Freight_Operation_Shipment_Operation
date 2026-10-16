@@ -308,8 +308,10 @@ try {
     bol_type: "MBL",
     shipment_id: adminParcelId,
     created_by: adminUser.userId,
-  });
-  assert(blankMbl.error, "Blank carrier-issued MBL was accepted");
+  }).select("id, bol_number").single();
+  if (blankMbl.error) throw new Error(`MBL issuance failed: ${blankMbl.error.message}`);
+  created.bolIds.push(blankMbl.data.id);
+  assert(/^MBL-\d{2}-\d{6}$/.test(blankMbl.data.bol_number), "Generated MBL format is invalid");
 
   const pickup = await adminUser.client
     .from("pickup_requests")

@@ -11,6 +11,7 @@ import {
   ApiError,
 } from "@/lib/server/api";
 import { routingRequestSchema } from "@/lib/validation/schemas";
+import { checkPermission } from "@/lib/auth";
 
 const RATE_LIMIT = { perMinute: 20 };
 
@@ -18,6 +19,10 @@ export async function POST(request: Request) {
   return withErrors(async () => {
     const supabase = await createClient();
     await requireUser(supabase);
+    const permission = await checkPermission("planning.manage");
+    if ("error" in permission) {
+      throw new ApiError(403, "You are not allowed to request freight routes");
+    }
 
     if (!aiEnabled()) {
       throw new ApiError(

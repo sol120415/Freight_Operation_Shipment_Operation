@@ -17,6 +17,7 @@ import {
   UserCircle,
   Truck,
   Network,
+  Route,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
@@ -69,6 +70,7 @@ export const NAV_ITEMS: NavItem[] = [
   // ---- Legacy operations suite (admin) ----
   { href: "/pickup", label: "Pickup & Intake", icon: PackageSearch, roles: ["SuperAdmin", "Admin", "OperationsSupervisor", "PickupCoordinator", "IntakeClerk"] },
   { href: "/booking", label: "Shipment Bookings", icon: PackagePlus, roles: ["SuperAdmin", "Admin", "OperationsSupervisor", "Dispatcher", "DocumentOfficer"] },
+  { href: "/freight-planning", label: "Freight Planning", icon: Route, roles: ["SuperAdmin", "Admin", "OperationsSupervisor", "Dispatcher", "DocumentOfficer"] },
   { href: "/exceptions", label: "Exception Monitor", icon: TriangleAlert, roles: ["SuperAdmin", "Admin", "OperationsSupervisor", "HandoverOfficer", "ExceptionOfficer", "CarrierRelations"], badge: { text: "live", kind: "live" } },
   {
     href: "/manifest",
@@ -141,8 +143,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Operations Hub",
     icon: Truck,
     roles: ["SuperAdmin", "Admin", "OperationsSupervisor", "PickupCoordinator", "IntakeClerk", "OrderProcessor", "Dispatcher", "HandoverOfficer", "ExceptionOfficer", "DocumentOfficer", "CarrierRelations"],
-    hrefs: ["/pickup", "/booking", "/manifest", "/handover", "/waybill", "/exceptions"],
-    description: "Pickup → Booking → Manifest → Handover → Exceptions",
+    hrefs: ["/pickup", "/booking", "/freight-planning", "/manifest", "/handover", "/waybill", "/exceptions"],
+    description: "Pickup → Booking → Planning → Manifest → Handover",
   },
   {
     id: "directory",

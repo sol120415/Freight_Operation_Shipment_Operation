@@ -40,6 +40,8 @@ export type Permission =
   | "pickup.manage"
   /** Create and manage shipment bookings. */
   | "bookings.manage"
+  /** Save route plans and manage freight consolidation/deconsolidation. */
+  | "planning.manage"
   /** Create and ready courier manifests. */
   | "manifests.manage"
   /** View ready and completed handovers. */
@@ -109,6 +111,7 @@ const PERMISSIONS: Record<Permission, AppRole[]> = {
   "orders.process": [...OPS_LEAD_ROLES, "OrderProcessor"],
   "pickup.manage": [...OPS_LEAD_ROLES, "PickupCoordinator", "IntakeClerk"],
   "bookings.manage": [...OPS_LEAD_ROLES, "Dispatcher", "DocumentOfficer"],
+  "planning.manage": [...OPS_LEAD_ROLES, "Dispatcher", "DocumentOfficer"],
   "manifests.manage": [...OPS_LEAD_ROLES, "Dispatcher"],
   "handover.view": [...OPS_LEAD_ROLES, "HandoverOfficer", "ExceptionOfficer", "CarrierRelations"],
   "handover.finalize": [...OPS_LEAD_ROLES, "HandoverOfficer"],

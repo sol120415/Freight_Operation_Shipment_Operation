@@ -150,6 +150,7 @@ export async function updateSession(request: NextRequest) {
   // Route Guard: privileged ops modules — Admin + SuperAdmin only.
   const permissionRoutes = [
     ["/operations", "orders.viewPending"],
+    ["/freight-planning", "planning.manage"],
     ["/reports", "reports.view"],
     ["/analytics", "analytics.view"],
     ["/audit-logs", "audit.view"],

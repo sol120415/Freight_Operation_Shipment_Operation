@@ -44,6 +44,10 @@ describe("rbac permission matrix", () => {
     expect(can("OrderProcessor", "settings.manage")).toBe(false);
     expect(can("IntakeClerk", "manifests.manage")).toBe(false);
     expect(can("Dispatcher", "manifests.manage")).toBe(true);
+    expect(can("Dispatcher", "planning.manage")).toBe(true);
+    expect(can("DocumentOfficer", "planning.manage")).toBe(true);
+    expect(can("IntakeClerk", "planning.manage")).toBe(false);
+    expect(can("FinanceOps", "planning.manage")).toBe(false);
     expect(can("Dispatcher", "handover.finalize")).toBe(false);
     expect(can("HandoverOfficer", "handover.finalize")).toBe(true);
     expect(can("HandoverOfficer", "manifests.manage")).toBe(false);
@@ -63,6 +67,7 @@ describe("rbac permission matrix", () => {
     expect(can("Seller", "settings.manage")).toBe(false);
     expect(can("Seller", "hubs.manage")).toBe(false);
     expect(can("Seller", "parcels.updateStatus")).toBe(false);
+    expect(can("Seller", "planning.manage")).toBe(false);
   });
 
   it("customers and citizens have no administrative permissions at all", () => {

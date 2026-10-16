@@ -632,6 +632,15 @@ export interface Database {
           utilization_pct: number;
           ml_score: number | null;
           ml_rationale: string | null;
+          route_name: string | null;
+          carrier_name: string | null;
+          transport_mode: string | null;
+          incoterms: string | null;
+          transit_time_days: number | null;
+          estimated_cost_php: number | null;
+          co2_reduction_percent: number | null;
+          risk_score: string | null;
+          key_advantage: string | null;
           created_by: string | null;
           approved_by: string | null;
           approved_at: string | null;
@@ -652,6 +661,15 @@ export interface Database {
           utilization_pct?: number;
           ml_score?: number | null;
           ml_rationale?: string | null;
+          route_name?: string | null;
+          carrier_name?: string | null;
+          transport_mode?: string | null;
+          incoterms?: string | null;
+          transit_time_days?: number | null;
+          estimated_cost_php?: number | null;
+          co2_reduction_percent?: number | null;
+          risk_score?: string | null;
+          key_advantage?: string | null;
           created_by?: string | null;
           approved_by?: string | null;
           approved_at?: string | null;
@@ -1131,6 +1149,15 @@ export interface Database {
       next_pickup_reference: { Args: Record<string, never>; Returns: string };
       next_manifest_reference: { Args: Record<string, never>; Returns: string };
       next_hbl_number: { Args: Record<string, never>; Returns: string };
+      next_mbl_number: { Args: Record<string, never>; Returns: string };
+      next_freight_plan_reference: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      can_manage_freight_planning: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
       create_parcel: {
         Args: {
           p_source: string;
@@ -1170,6 +1197,41 @@ export interface Database {
       };
       release_manifest: {
         Args: { p_batch_id: string };
+        Returns: Record<string, unknown>;
+      };
+      create_freight_load_plan: {
+        Args: {
+          p_origin: string;
+          p_destination: string;
+          p_transport_mode: string;
+          p_incoterms: string;
+          p_route_name: string;
+          p_carrier_name: string;
+          p_transit_time_days: number;
+          p_estimated_cost_php: number;
+          p_co2_reduction_percent: number;
+          p_risk_score: string;
+          p_key_advantage: string;
+          p_max_weight_kg: number;
+          p_max_volume_cbm: number;
+          p_shipment_ids?: string[];
+        };
+        Returns: Record<string, unknown>;
+      };
+      create_freight_consolidation: {
+        Args: {
+          p_container_type: string;
+          p_load_type: string;
+          p_max_volume_cbm: number;
+          p_max_weight_kg: number;
+          p_origin: string;
+          p_destination: string;
+          p_shipment_ids: string[];
+        };
+        Returns: Record<string, unknown>;
+      };
+      deconsolidate_freight_shipment: {
+        Args: { p_container_id: string; p_shipment_id: string };
         Returns: Record<string, unknown>;
       };
       finalize_handover: {

@@ -85,6 +85,42 @@ export const batchCreateSchema = z.object({
 });
 export type BatchCreateInput = z.infer<typeof batchCreateSchema>;
 
+/** Save a route recommendation and the shipments it covers. */
+export const freightPlanSchema = z.object({
+  origin: z.string().trim().min(2, "Origin is required").max(200),
+  destination: z.string().trim().min(2, "Destination is required").max(200),
+  transportMode: z.enum(["Ocean", "Air", "Road", "Rail"]),
+  incoterms: z.string().trim().min(2).max(40),
+  routeName: z.string().trim().min(2, "Choose a route").max(200),
+  carrierName: z.string().trim().min(2, "Carrier is required").max(200),
+  transitTimeDays: z.number().nonnegative(),
+  estimatedCostPHP: z.number().nonnegative(),
+  co2ReductionPercent: z.number().min(0).max(100),
+  riskScore: z.enum(["Low", "Medium", "High"]),
+  keyAdvantage: z.string().trim().min(2).max(500),
+  maxWeightKg: z.number().positive("Weight capacity must be greater than zero"),
+  maxVolumeCbm: z.number().positive("Volume capacity must be greater than zero"),
+  shipmentIds: z.array(z.string().uuid()).default([]),
+});
+export type FreightPlanInput = z.infer<typeof freightPlanSchema>;
+
+/** Create a controlled LCL/FCL consolidation from selected shipments. */
+export const freightConsolidationSchema = z.object({
+  containerType: z.string().trim().min(2).max(120),
+  loadType: z.enum(["LCL", "FCL"]),
+  maxVolumeCbm: z.number().positive("Volume capacity must be greater than zero"),
+  maxWeightKg: z.number().positive("Weight capacity must be greater than zero"),
+  origin: z.string().trim().min(2, "Origin is required").max(200),
+  destination: z.string().trim().min(2, "Destination is required").max(200),
+  shipmentIds: z.array(z.string().uuid()).min(1, "Select at least one shipment"),
+});
+export type FreightConsolidationInput = z.infer<typeof freightConsolidationSchema>;
+
+export const freightDeconsolidationSchema = z.object({
+  containerId: z.string().uuid(),
+  shipmentId: z.string().uuid(),
+});
+
 /** Mark a batch Ready for pickup (after manifest is generated). */
 export const batchReadySchema = z.object({
   batchId: z.string().uuid(),
@@ -167,14 +203,6 @@ export const bolSchema = z.object({
   totalVolumeCbm: positiveNumber("Volume must be >= 0").default(0),
   goodsDescription: z.string().trim().max(2000).default(""),
   freightTerms: z.string().trim().max(40).default("Prepaid"),
-}).superRefine((value, ctx) => {
-  if (value.bolType === "MBL" && value.bolNumber.length < 4) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["bolNumber"],
-      message: "Enter the MBL number issued by the ocean carrier",
-    });
-  }
 });
 export type BolInput = z.infer<typeof bolSchema>;
 
