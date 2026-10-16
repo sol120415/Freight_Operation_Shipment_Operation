@@ -5,7 +5,8 @@ import { checkPermission } from "@/lib/auth";
 /**
  * POST /api/courier-location — post a GPS fix for one parcel.
  *
- * Authorization: operations staff only (Admin). Delegates to the
+ * Authorization: approved tracking roles, including an assigned Courier.
+ * Delegates to the
  * `post_tracking_update` RPC which re-checks authorization INSIDE the
  * database, validates coordinates are within the Philippines, writes the
  * tracking event and updates the shipment row (which realtime map clients
@@ -35,10 +36,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many updates" }, { status: 429 });
   }
 
-  const check = await checkPermission("parcels.updateStatus");
+  const check = await checkPermission("tracking.update");
   if ("error" in check) {
     return NextResponse.json(
-      { error: "Only operations staff can post courier locations" },
+      { error: "You are not allowed to post a location for this parcel" },
       { status: 403 },
     );
   }

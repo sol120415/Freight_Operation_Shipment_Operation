@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { z } from "zod";
 import { runAction, ok, okVoid, fail, type ActionResult } from "@/lib/actions/result";
 import { bookingSchema, cancelBookingSchema } from "@/lib/validation/schemas";
@@ -16,7 +16,7 @@ export async function createBooking(
   input: unknown,
 ): Promise<ActionResult<{ reference: string; shipmentId: string }>> {
   return runAction("booking.createBooking", bookingSchema, input, async (form) => {
-    await requireRole(["SuperAdmin", "Admin"]);
+    await requirePermission("bookings.manage");
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("create_parcel", {
       p_source: "booking",
@@ -63,7 +63,7 @@ export async function cancelBooking(
     shipmentId,
     cancelReason,
   }, async ({ cancelReason: reason }) => {
-    await requireRole(["SuperAdmin", "Admin"]);
+    await requirePermission("bookings.manage");
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("update_parcel_status", {
       p_parcel_id: shipmentId,
@@ -85,7 +85,7 @@ export async function archiveBooking(shipmentId: string): Promise<ActionResult> 
     z.object({ shipmentId: z.string().uuid() }),
     { shipmentId },
     async () => {
-      await requireRole(["SuperAdmin", "Admin"]);
+      await requirePermission("bookings.manage");
       const supabase = await createClient();
       const { data, error } = await supabase.rpc("update_parcel_status", {
         p_parcel_id: shipmentId,

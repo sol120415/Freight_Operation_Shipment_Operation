@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac";
-import { parseAppRole, ALL_ROLES } from "@/lib/roles";
+import { parseAppRole, ALL_ROLES, ROLE_DESCRIPTIONS } from "@/lib/roles";
 import { updateUserRole, toggleUserActive } from "./actions";
 import type { Profile } from "@/types";
 
@@ -48,8 +48,8 @@ export default async function AdminUsersPage({
             User management
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            SuperAdmin only — assign roles (SuperAdmin, Admin, Seller, Customer,
-            Citizen) and activate/deactivate accounts. {rows.length} shown.
+            SuperAdmin only — assign a role with a clear operational purpose and
+            activate/deactivate accounts. {rows.length} shown.
           </p>
         </div>
         <form method="get" className="flex gap-2">
@@ -91,18 +91,23 @@ export default async function AdminUsersPage({
                 <td className="px-4 py-2.5">
                   <form action={updateUserRole} className="flex gap-1.5">
                     <input type="hidden" name="userId" value={p.id} />
-                    <select
-                      name="role"
-                      defaultValue={p.role}
-                      disabled={p.id === user.id}
-                      className="rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-2 py-1.5 text-slate-900 dark:text-white [&>option]:text-slate-900 disabled:opacity-50"
-                    >
-                      {ALL_ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
+                    <div>
+                      <select
+                        name="role"
+                        defaultValue={p.role}
+                        disabled={p.id === user.id}
+                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-2 py-1.5 text-slate-900 dark:text-white [&>option]:text-slate-900 disabled:opacity-50"
+                      >
+                        {ALL_ROLES.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 max-w-[18rem] text-[10px] text-slate-400">
+                        {ROLE_DESCRIPTIONS[p.role]}
+                      </p>
+                    </div>
                     <button
                       type="submit"
                       disabled={p.id === user.id}

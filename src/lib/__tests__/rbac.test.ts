@@ -5,6 +5,7 @@ import {
   isAdminRole,
   isSuperAdminRole,
   isStaffRole,
+  isOpsStaffRole,
   isSellerRole,
   isCustomerRole,
   isCitizenRole,
@@ -34,6 +35,24 @@ describe("rbac permission matrix", () => {
     expect(can("SuperAdmin", "users.manage")).toBe(true);
     expect(can("SuperAdmin", "reports.export")).toBe(true);
     expect(can("SuperAdmin", "ai.train")).toBe(true);
+  });
+
+  it("task roles only receive the permissions they need", () => {
+    expect(can("IntakeClerk", "intake.manage")).toBe(true);
+    expect(can("OrderProcessor", "orders.viewPending")).toBe(true);
+    expect(can("OrderProcessor", "orders.process")).toBe(true);
+    expect(can("OrderProcessor", "settings.manage")).toBe(false);
+    expect(can("IntakeClerk", "manifests.manage")).toBe(false);
+    expect(can("Dispatcher", "manifests.manage")).toBe(true);
+    expect(can("Dispatcher", "handover.finalize")).toBe(false);
+    expect(can("HandoverOfficer", "handover.finalize")).toBe(true);
+    expect(can("HandoverOfficer", "manifests.manage")).toBe(false);
+    expect(can("ExceptionOfficer", "exceptions.manage")).toBe(true);
+    expect(can("FinanceOps", "finance.view")).toBe(true);
+    expect(can("FinanceOps", "settings.manage")).toBe(false);
+    expect(can("DocumentOfficer", "documents.manage")).toBe(true);
+    expect(can("Courier", "parcels.viewAssigned")).toBe(true);
+    expect(can("Courier", "parcels.viewAll")).toBe(false);
   });
 
   it("sellers can create parcels but never manage the system", () => {
@@ -77,13 +96,15 @@ describe("rbac permission matrix", () => {
     expect(roleTier("SuperAdmin")).toBe("SUPERADMIN");
   });
 
-  it("removed legacy roles stay rejected (client/carrier aliases aside)", () => {
+  it("legacy carrier/planner roles stay rejected while dispatcher is active", () => {
     // "Client" is a legacy alias that now resolves to the Customer tier;
     // truly removed operational roles stay rejected.
     expect(parseAppRole("Carrier")).toBeNull();
-    expect(parseAppRole("Dispatcher")).toBeNull();
+    expect(parseAppRole("Dispatcher")).toBe("Dispatcher");
     expect(parseAppRole("Planner")).toBeNull();
     expect(roleTier("Admin")).toBe("ADMIN");
+    expect(roleTier("Dispatcher")).toBe("OPERATIONS");
+    expect(roleTier("Courier")).toBe("COURIER");
     expect(roleTier("Seller")).toBe("SELLER");
     expect(roleTier("Customer")).toBe("CUSTOMER");
   });
@@ -109,15 +130,16 @@ describe("role tiers & predicates", () => {
     expect(isSuperAdminRole("Admin")).toBe(false);
     expect(isStaffRole("Admin")).toBe(true);
     expect(isStaffRole("SuperAdmin")).toBe(true);
-    // Canonical roles parse; legacy operational roles are rejected.
-    for (const r of ["SuperAdmin", "Admin", "Seller", "Customer", "Citizen"] as const) {
+    expect(isOpsStaffRole("Admin")).toBe(false);
+    expect(isOpsStaffRole("OrderProcessor")).toBe(true);
+    // Canonical roles parse; old Carrier/Planner labels are rejected.
+    for (const r of ["SuperAdmin", "Admin", "OperationsSupervisor", "PickupCoordinator", "IntakeClerk", "OrderProcessor", "Dispatcher", "HandoverOfficer", "ExceptionOfficer", "FinanceOps", "DocumentOfficer", "CarrierRelations", "Courier", "Seller", "Customer", "Citizen"] as const) {
       expect(parseAppRole(r)).toBe(r);
     }
     // Human aliases resolve to canonical roles.
     expect(parseAppRole("super admin")).toBe("SuperAdmin");
     expect(parseAppRole("citizen")).toBe("Citizen");
     expect(parseAppRole("other user")).toBe("Citizen");
-    expect(parseAppRole("Dispatcher")).toBeNull();
     expect(parseAppRole("Planner")).toBeNull();
     expect(parseAppRole("Carrier")).toBeNull();
   });

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { getHubDashboard } from "@/lib/queries";
+import { listParcels } from "@/lib/repos/parcels";
 import { computeHubStats, monthlyIntakeVolume } from "@/lib/stats";
 import { formatNumber, formatDate } from "@/lib/utils";
 import KpiCard from "@/components/ui/KpiCard";
@@ -21,16 +22,21 @@ import EmptyState from "@/components/ui/EmptyState";
 import { listTrackingLogs } from "@/lib/repos/loadplans";
 import type { TrackingLog } from "@/types";
 import { isDemoMode } from "@/lib/demoMode";
+import PendingOrdersPanel from "@/components/orders/PendingOrdersPanel";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
   // Enforce Admin route guard (SuperAdmin inherits admin privileges)
-  await requireRole(["Admin", "SuperAdmin"]);
+  await requireRole([
+    "SuperAdmin",
+    "Admin",
+  ]);
 
-  const [{ shipments, batches, handovers }, recentLogs] = await Promise.all([
+  const [{ shipments, batches, handovers }, recentLogs, pendingOrders] = await Promise.all([
     getHubDashboard(),
     listTrackingLogs(undefined, 15),
+    listParcels({ status: ["Booked", "Registered"], page: 1, pageSize: 8, sort: "created_asc" }),
   ]);
   const demoMode = await isDemoMode();
 
@@ -132,6 +138,8 @@ export default async function AdminDashboardPage() {
 
         <ActivityFeed initial={recentLogs as TrackingLog[]} live={!demoMode} />
       </div>
+
+      <PendingOrdersPanel orders={pendingOrders.rows} total={pendingOrders.total} compact />
 
       {/* Open Batches */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">

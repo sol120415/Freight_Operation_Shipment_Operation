@@ -55,6 +55,7 @@ const shipmentDefaults: Shipment = {
   archived_at: null,
   client_id: null,
   carrier_id: null,
+  courier_profile_id: null,
   created_by: null,
   created_at: "2026-10-01T09:00:00+08:00",
   updated_at: "2026-10-02T08:30:00+08:00",

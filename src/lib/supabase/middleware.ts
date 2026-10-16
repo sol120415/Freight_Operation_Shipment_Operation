@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
+import type { AppRole } from "@/types";
+import { can, isAdminRole, isCourierRole, isOpsStaffRole } from "@/lib/rbac";
 
 // Public routes — exact match or prefix with slash to avoid /loginsucks bypass
 const PUBLIC_ROUTES = [
@@ -32,9 +34,7 @@ function isApiRoute(pathname: string): boolean {
  * routes. Unauthenticated users hitting an app route are redirected to
  * /login; the session cookie is kept fresh for Server Components.
  *
- * RBAC: SuperAdmin inherits every Admin gate (privilege superset).
- * Privileged ops modules (reports, analytics, audit-logs, settings, hubs,
- * sellers, customers, AI training) are Admin/SuperAdmin-only; pages re-check
+ * RBAC: route checks mirror the centralized permission matrix. Pages re-check
  * via requirePermission for defense in depth.
  */
 export async function updateSession(request: NextRequest) {
@@ -75,7 +75,7 @@ export async function updateSession(request: NextRequest) {
 
   // If we have a user, check is_active and role to enforce RBAC and avoid redirect loops
   let isActive: boolean | null = null;
-  let userRole: string | null = null;
+  let userRole: AppRole | null = null;
   if (user) {
     try {
       const { data: profile } = await supabase
@@ -114,6 +114,10 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     if (userRole === "SuperAdmin" || userRole === "Admin") {
       url.pathname = "/admin/dashboard";
+    } else if (userRole && isOpsStaffRole(userRole)) {
+      url.pathname = "/operations/dashboard";
+    } else if (userRole && isCourierRole(userRole)) {
+      url.pathname = "/parcels";
     } else if (userRole === "Seller") {
       url.pathname = "/seller/dashboard";
     } else {
@@ -122,8 +126,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const isPrivileged = (role: string | null) =>
-    role === "Admin" || role === "SuperAdmin";
+  const isPrivileged = (role: AppRole | null) =>
+    role !== null && isAdminRole(role);
 
   // Route Guard: Admin-specific routes (/admin/*) — SuperAdmin inherits.
   if (user && pathname.startsWith("/admin")) {
@@ -144,23 +148,22 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Route Guard: privileged ops modules — Admin + SuperAdmin only.
-  const PRIVILEGED_PREFIXES = [
-    "/reports",
-    "/analytics",
-    "/audit-logs",
-    "/settings",
-    "/hubs",
-    "/sellers",
-    "/customers",
-    "/ai/training",
-  ];
-  if (
-    user &&
-    PRIVILEGED_PREFIXES.some(
-      (p) => pathname === p || pathname.startsWith(p + "/"),
-    )
-  ) {
-    if (!isPrivileged(userRole)) {
+  const permissionRoutes = [
+    ["/operations", "orders.viewPending"],
+    ["/reports", "reports.view"],
+    ["/analytics", "analytics.view"],
+    ["/audit-logs", "audit.view"],
+    ["/settings", "settings.manage"],
+    ["/hubs", "hubs.manage"],
+    ["/sellers", "sellers.manage"],
+    ["/customers", "customers.view"],
+    ["/ai/training", "ai.train"],
+  ] as const;
+  const requiredPermission = permissionRoutes.find(
+    ([prefix]) => pathname === prefix || pathname.startsWith(prefix + "/"),
+  )?.[1];
+  if (user && requiredPermission) {
+    if (!userRole || !can(userRole, requiredPermission)) {
       const url = request.nextUrl.clone();
       url.pathname = "/forbidden";
       return NextResponse.redirect(url);

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { runAction, ok, okVoid, fail, type ActionResult } from "@/lib/actions/result";
 import {
   sellerSchema,
@@ -17,7 +17,7 @@ export async function createSeller(
   input: unknown,
 ): Promise<ActionResult<{ id: string; reference: string }>> {
   return runAction("pickup.createSeller", sellerSchema, input, async (form) => {
-    const profile = await requireRole(["SuperAdmin", "Admin"]);
+    const profile = await requirePermission("sellers.manage");
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("sellers")
@@ -44,7 +44,7 @@ export async function createPickup(
   input: unknown,
 ): Promise<ActionResult<{ id: string; reference: string }>> {
   return runAction("pickup.createPickup", pickupSchema, input, async (form) => {
-    const profile = await requireRole(["SuperAdmin", "Admin"]);
+    const profile = await requirePermission("pickup.manage");
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("pickup_requests")
@@ -79,7 +79,7 @@ export async function updatePickupStatus(
     status,
     actualParcelCount,
   }, async ({ status: s, actualParcelCount: actual }) => {
-    await requireRole(["SuperAdmin", "Admin"]);
+    await requirePermission("pickup.manage");
     const supabase = await createClient();
     const { error } = await supabase
 .from("pickup_requests")
@@ -104,7 +104,7 @@ export async function quickIntake(
   input: unknown,
 ): Promise<ActionResult<{ reference: string }>> {
   return runAction("pickup.quickIntake", parcelIntakeSchema, input, async (form) => {
-    await requireRole(["SuperAdmin", "Admin"]);
+    await requirePermission("intake.manage");
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("create_parcel", {
       p_source: "quick_intake",

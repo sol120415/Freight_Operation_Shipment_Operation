@@ -5,7 +5,9 @@ import type { AppRole } from "@/types";
  *
  * Canonical tiers (expanded per core requirements):
  *   SUPERADMIN -> SuperAdmin (full system access + user/role management)
- *   ADMIN      -> Admin (full operations access)
+ *   ADMIN      -> Admin (full operations and configuration access)
+ *   OPERATIONS -> task-scoped hub staff roles
+ *   COURIER    -> assigned-parcel delivery updates only
  *   SELLER     -> Seller (business sender — "other user" type that ships parcels)
  *   CUSTOMER   -> Customer (recipient)
  *   CITIZEN    -> Citizen (public/citizen portal — same data tier as Customer)
@@ -26,6 +28,38 @@ export type Permission =
   | "parcels.create"
   /** Change parcel status/location (drives tracking + notifications). */
   | "parcels.updateStatus"
+  /** Move a parcel between facilities or set its operational location. */
+  | "parcels.move"
+  /** Register and receive parcels at the hub. */
+  | "intake.manage"
+  /** View the pending/confirmed order queue. */
+  | "orders.viewPending"
+  /** Confirm a pending order and move it into hub intake. */
+  | "orders.process"
+  /** Schedule and receive seller pickups. */
+  | "pickup.manage"
+  /** Create and manage shipment bookings. */
+  | "bookings.manage"
+  /** Create and ready courier manifests. */
+  | "manifests.manage"
+  /** View ready and completed handovers. */
+  | "handover.view"
+  /** Finalize a ready handover to a courier. */
+  | "handover.finalize"
+  /** View operational exceptions. */
+  | "exceptions.view"
+  /** Resolve or update operational exceptions. */
+  | "exceptions.manage"
+  /** View COD and settlement-related reporting. */
+  | "finance.view"
+  /** Create and finalize House/Master waybill records. */
+  | "documents.manage"
+  /** View hub/facility names without managing the master data. */
+  | "hubs.view"
+  /** Post GPS or partner tracking updates. */
+  | "tracking.update"
+  /** View parcels assigned directly to a courier account. */
+  | "parcels.viewAssigned"
   /** Manage hubs/facilities. */
   | "hubs.manage"
   /** Read the audit log. */
@@ -45,24 +79,53 @@ export type Permission =
 
 /** Roles with full administrative power (ops + system config). */
 const ADMIN_ROLES: AppRole[] = ["SuperAdmin", "Admin"];
+const OPS_LEAD_ROLES: AppRole[] = [...ADMIN_ROLES, "OperationsSupervisor"];
+const INTERNAL_ROLES: AppRole[] = [
+  ...OPS_LEAD_ROLES,
+  "PickupCoordinator",
+  "IntakeClerk",
+  "OrderProcessor",
+  "Dispatcher",
+  "HandoverOfficer",
+  "ExceptionOfficer",
+  "FinanceOps",
+  "DocumentOfficer",
+  "CarrierRelations",
+];
 
 /** SuperAdmin-only powers. */
 const SUPERADMIN_ROLES: AppRole[] = ["SuperAdmin"];
 
 /** Permission matrix. One entry per permission — no scattered role checks. */
 const PERMISSIONS: Record<Permission, AppRole[]> = {
-  "sellers.manage": ADMIN_ROLES,
-  "customers.view": ADMIN_ROLES,
-  "parcels.viewAll": ADMIN_ROLES,
-  "parcels.create": [...ADMIN_ROLES, "Seller"],
-  "parcels.updateStatus": ADMIN_ROLES,
-  "hubs.manage": ADMIN_ROLES,
-  "audit.view": ADMIN_ROLES,
+  "sellers.manage": [...OPS_LEAD_ROLES, "PickupCoordinator"],
+  "customers.view": [...OPS_LEAD_ROLES, "ExceptionOfficer", "CarrierRelations"],
+  "parcels.viewAll": INTERNAL_ROLES,
+  "parcels.create": [...OPS_LEAD_ROLES, "PickupCoordinator", "IntakeClerk", "Seller"],
+  "parcels.updateStatus": [...OPS_LEAD_ROLES, "PickupCoordinator", "IntakeClerk", "OrderProcessor", "ExceptionOfficer"],
+  "parcels.move": [...OPS_LEAD_ROLES, "PickupCoordinator", "IntakeClerk", "Dispatcher", "ExceptionOfficer", "CarrierRelations"],
+  "intake.manage": [...OPS_LEAD_ROLES, "PickupCoordinator", "IntakeClerk"],
+  "orders.viewPending": [...INTERNAL_ROLES],
+  "orders.process": [...OPS_LEAD_ROLES, "OrderProcessor"],
+  "pickup.manage": [...OPS_LEAD_ROLES, "PickupCoordinator", "IntakeClerk"],
+  "bookings.manage": [...OPS_LEAD_ROLES, "Dispatcher", "DocumentOfficer"],
+  "manifests.manage": [...OPS_LEAD_ROLES, "Dispatcher"],
+  "handover.view": [...OPS_LEAD_ROLES, "HandoverOfficer", "ExceptionOfficer", "CarrierRelations"],
+  "handover.finalize": [...OPS_LEAD_ROLES, "HandoverOfficer"],
+  "exceptions.view": [...OPS_LEAD_ROLES, "HandoverOfficer", "ExceptionOfficer", "CarrierRelations"],
+  "exceptions.manage": [...OPS_LEAD_ROLES, "ExceptionOfficer"],
+  "finance.view": [...OPS_LEAD_ROLES, "FinanceOps"],
+  "documents.manage": [...OPS_LEAD_ROLES, "Dispatcher", "DocumentOfficer"],
+  "hubs.view": INTERNAL_ROLES,
+  "tracking.update": [...OPS_LEAD_ROLES, "ExceptionOfficer", "CarrierRelations", "Courier"],
+  "parcels.viewAssigned": ["Courier"],
+  "hubs.manage": OPS_LEAD_ROLES,
+  "audit.view": OPS_LEAD_ROLES,
   "settings.manage": ADMIN_ROLES,
   "users.manage": SUPERADMIN_ROLES,
-  "reports.view": ADMIN_ROLES,
-  "reports.export": ADMIN_ROLES,
-  "analytics.view": ADMIN_ROLES,
+  "reports.view": [...OPS_LEAD_ROLES, "ExceptionOfficer", "FinanceOps", "CarrierRelations"],
+  "reports.export": [...OPS_LEAD_ROLES, "FinanceOps"],
+  "analytics.view": [...OPS_LEAD_ROLES, "FinanceOps"],
   "ai.train": ADMIN_ROLES,
 };
 
@@ -71,7 +134,7 @@ export function can(role: AppRole, permission: Permission): boolean {
 }
 
 /** Canonical tier label used for display + coarse gates. */
-export type RoleTier = "SUPERADMIN" | "ADMIN" | "SELLER" | "CUSTOMER" | "CITIZEN";
+export type RoleTier = "SUPERADMIN" | "ADMIN" | "OPERATIONS" | "COURIER" | "SELLER" | "CUSTOMER" | "CITIZEN";
 
 export function roleTier(role: AppRole): RoleTier {
   switch (role) {
@@ -79,6 +142,19 @@ export function roleTier(role: AppRole): RoleTier {
       return "SUPERADMIN";
     case "Admin":
       return "ADMIN";
+    case "OperationsSupervisor":
+    case "PickupCoordinator":
+    case "IntakeClerk":
+    case "OrderProcessor":
+    case "Dispatcher":
+    case "HandoverOfficer":
+    case "ExceptionOfficer":
+    case "FinanceOps":
+    case "DocumentOfficer":
+    case "CarrierRelations":
+      return "OPERATIONS";
+    case "Courier":
+      return "COURIER";
     case "Seller":
       return "SELLER";
     case "Citizen":
@@ -97,13 +173,17 @@ export function isAdminRole(role: AppRole): boolean {
   return role === "Admin" || role === "SuperAdmin";
 }
 
-/** Admin or SuperAdmin — full write access to operational data. */
+/** Any internal account allowed into the operations data tier. */
 export function isStaffRole(role: AppRole): boolean {
-  return role === "Admin" || role === "SuperAdmin";
+  return INTERNAL_ROLES.includes(role);
 }
 
 export function isOpsStaffRole(role: AppRole): boolean {
-  return isStaffRole(role);
+  return INTERNAL_ROLES.includes(role) && !isAdminRole(role);
+}
+
+export function isCourierRole(role: AppRole): boolean {
+  return role === "Courier";
 }
 
 /** Seller-tier account (sends parcels through the hub). */

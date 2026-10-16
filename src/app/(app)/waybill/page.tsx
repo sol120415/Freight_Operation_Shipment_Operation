@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireRole, isStaff } from "@/lib/auth";
+import { requirePermission, isStaff } from "@/lib/auth";
 import { aiEnabled } from "@/lib/ai";
 import { listShipmentsForBol } from "@/lib/repos/shipments";
 import { listBillsOfLading } from "@/lib/repos/bol";
@@ -13,7 +13,7 @@ import BolGenerator from "./BolGenerator";
 export const dynamic = "force-dynamic";
 
 export default async function WaybillPage() {
-  const profile = await requireRole(["SuperAdmin", "Admin"]);
+  const profile = await requirePermission("documents.manage");
 
   const [shipments, bolList] = await Promise.all([
     listShipmentsForBol(),

@@ -219,13 +219,13 @@ export default function SidebarNav({
         </div>
       )}
 
-      {/* ================= Admin Modules — Accordion (Tailwind state) ================= */}
+      {/* ================= Workspace Modules — Accordion (Tailwind state) ================= */}
       {groups.length > 0 && (
         <>
           <div className="border-t border-slate-800/70" />
           <div className="space-y-3">
             <p className="px-3 text-[10px] font-bold tracking-widest text-slate-500 uppercase">
-              Admin Modules
+              Workspace Modules
             </p>
             {groups.map((group) => {
               const isOpen = !!openGroups[group.id];

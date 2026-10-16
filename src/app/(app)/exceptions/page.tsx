@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, Clock3, PackageX, Truck } from "lucide-react";
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getOperationalExceptions } from "@/lib/repos/exceptions";
 import { formatDateTime } from "@/lib/utils";
 import PageHeader from "@/components/ui/PageHeader";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Operations Exceptions — Airship Express" };
 
 export default async function ExceptionsPage() {
-  await requireRole(["SuperAdmin", "Admin"]);
+  await requirePermission("exceptions.view");
   const { parcels, handovers } = await getOperationalExceptions();
   const critical = parcels.filter((item) => item.severity === "critical").length;
   const overdue = parcels.filter((item) => item.issues.includes("Past expected delivery date")).length;

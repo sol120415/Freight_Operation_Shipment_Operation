@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { runAction, ok, fail, type ActionResult } from "@/lib/actions/result";
 import { bolSchema, type BolInput } from "@/lib/validation/schemas";
 import { manilaDateISO } from "@/lib/utils";
@@ -14,7 +14,7 @@ export async function createBillOfLading(
   input: BolInput,
 ): Promise<ActionResult<{ id: string; bolNumber: string }>> {
   return runAction("waybill.createBillOfLading", bolSchema, input, async (form) => {
-    const profile = await requireRole(["SuperAdmin", "Admin"]);
+    const profile = await requirePermission("documents.manage");
     const supabase = await createClient();
 
     const { data, error } = await supabase

@@ -10,7 +10,7 @@ import {
   ArrowRight,
   Boxes,
 } from "lucide-react";
-import { requireProfile, isStaff, isSellerRole, isCustomerRole, isCitizenRole, isAdminRole } from "@/lib/auth";
+import { requireProfile, isStaff, isAdminRole, isOpsStaffRole, isSellerRole, isCustomerRole, isCitizenRole, isCourierRole } from "@/lib/auth";
 import { getHubDashboard, getShipments } from "@/lib/queries";import { computeHubStats, monthlyIntakeVolume } from "@/lib/stats";
 import { formatNumber } from "@/lib/utils";
 import KpiCard from "@/components/ui/KpiCard";
@@ -29,9 +29,18 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const profile = await requireProfile();
 
-  // ---- Redirect Admin/SuperAdmin to dedicated /admin/dashboard ----
+  // ---- Redirect internal operations staff to dedicated operations dashboard ----
   if (isAdminRole(profile.role)) {
     redirect("/admin/dashboard");
+  }
+
+  if (isOpsStaffRole(profile.role)) {
+    redirect("/operations/dashboard");
+  }
+
+  // Couriers use the parcel list, which is RLS-scoped to their assignments.
+  if (isCourierRole(profile.role)) {
+    redirect("/parcels");
   }
 
   // ---- Seller view: their own parcels only ----

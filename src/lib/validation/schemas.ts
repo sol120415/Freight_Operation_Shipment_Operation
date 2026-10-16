@@ -469,7 +469,24 @@ export type AiTrainingExampleInput = z.infer<typeof aiTrainingExampleSchema>;
 /** SuperAdmin user management — assign any canonical role. */
 export const userRoleUpdateSchema = z.object({
   userId: z.string().uuid(),
-  role: z.enum(["SuperAdmin", "Admin", "Seller", "Customer", "Citizen"]),
+  role: z.enum([
+    "SuperAdmin",
+    "Admin",
+    "OperationsSupervisor",
+    "PickupCoordinator",
+    "IntakeClerk",
+    "OrderProcessor",
+    "Dispatcher",
+    "HandoverOfficer",
+    "ExceptionOfficer",
+    "FinanceOps",
+    "DocumentOfficer",
+    "CarrierRelations",
+    "Courier",
+    "Seller",
+    "Customer",
+    "Citizen",
+  ]),
 });
 
 export const userActiveToggleSchema = z.object({

@@ -13,7 +13,7 @@ export interface ParcelRow extends Shipment {
 export interface ListParcelsOptions {
   /** Free-text search over tracking #, reference, recipient, client name. */
   q?: string;
-  status?: string;
+  status?: string | string[];
   sellerId?: string;
   customerId?: string;
   hubId?: string;
@@ -54,7 +54,10 @@ export async function listParcels(
   if (await isDemoMode()) {
     const term = opts.q?.trim().toLowerCase();
     const filtered = DEMO_SHIPMENTS.filter((shipment) => {
-      if (opts.status && shipment.status !== opts.status) return false;
+      if (opts.status) {
+        const statuses = Array.isArray(opts.status) ? opts.status : [opts.status];
+        if (!statuses.includes(shipment.status)) return false;
+      }
       if (opts.sellerId && shipment.seller_id !== opts.sellerId) return false;
       if (opts.customerId && shipment.client_id !== opts.customerId) return false;
       if (opts.hubId && shipment.current_hub_id !== opts.hubId) return false;
@@ -108,7 +111,11 @@ export async function listParcels(
       `tracking_number.ilike.${term},reference.ilike.${term},consignee.ilike.${term},client_name.ilike.${term}`,
     );
   }
-  if (opts.status) query = query.eq("status", opts.status as ShipmentStatus);
+  if (opts.status) {
+    query = Array.isArray(opts.status)
+      ? query.in("status", opts.status as ShipmentStatus[])
+      : query.eq("status", opts.status as ShipmentStatus);
+  }
   if (opts.sellerId) query = query.eq("seller_id", opts.sellerId);
   if (opts.customerId) query = query.eq("client_id", opts.customerId);
   if (opts.hubId) query = query.eq("current_hub_id", opts.hubId);

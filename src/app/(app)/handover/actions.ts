@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole, canFinalizeHandover } from "@/lib/auth";
+import { requirePermission, canFinalizeHandover } from "@/lib/auth";
 import { runAction, ok, fail, type ActionResult } from "@/lib/actions/result";
 import { handoverSchema } from "@/lib/validation/schemas";
 import { serverLog } from "@/lib/server/log";
@@ -21,7 +21,7 @@ export async function signHandover(
   input: unknown,
 ): Promise<ActionResult<{ batchId: string }>> {
   return runAction("handover.signHandover", handoverSchema, input, async (form) => {
-    const profile = await requireRole(["SuperAdmin", "Admin"]);
+    const profile = await requirePermission("handover.finalize");
     if (!canFinalizeHandover(profile.role)) {
       return fail("Only staff may finalize a handover");
     }

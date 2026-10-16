@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { runAction, ok, okVoid, fail, type ActionResult } from "@/lib/actions/result";
 import { batchCreateSchema, batchReadySchema } from "@/lib/validation/schemas";
 import { serverLog } from "@/lib/server/log";
@@ -16,7 +16,7 @@ export async function createBatch(
   input: unknown,
 ): Promise<ActionResult<{ id: string; reference: string }>> {
   return runAction("manifest.createBatch", batchCreateSchema, input, async (form) => {
-    await requireRole(["SuperAdmin", "Admin"]);
+    await requirePermission("manifests.manage");
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("create_manifest", {
       p_platform: form.platform,
@@ -54,7 +54,7 @@ export async function markBatchReady(
     batchReadySchema,
     { batchId },
     async ({ batchId: id }) => {
-      await requireRole(["SuperAdmin", "Admin"]);
+      await requirePermission("manifests.manage");
       const supabase = await createClient();
       const { data, error } = await supabase.rpc("mark_manifest_ready", {
         p_batch_id: id,
@@ -77,7 +77,7 @@ export async function releaseBatch(batchId: string): Promise<ActionResult> {
     batchReadySchema,
     { batchId },
     async ({ batchId: id }) => {
-      await requireRole(["SuperAdmin", "Admin"]);
+      await requirePermission("manifests.manage");
       const supabase = await createClient();
 
       const { data, error } = await supabase.rpc("release_manifest", {

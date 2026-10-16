@@ -144,7 +144,7 @@ the role-based dashboard redirect.
 identical whether or not the email exists.
 
 **Seeded accounts (local dev):** `supabase/seed.sql` provisions demo Admin,
-Seller (linked to `sellers` `SELL-DEMO-0001`), and Customer accounts on
+Seller (linked to `sellers` `SELL-DEMO-0001`), Customer, and OrderProcessor accounts on
 `supabase db reset`, or run it manually in the SQL Editor:
 
 | Role | Email | Name |
@@ -152,6 +152,7 @@ Seller (linked to `sellers` `SELL-DEMO-0001`), and Customer accounts on
 | Admin | `hazems120415@gmail.com` / `admin@freightos.demo` | Admin Sol, Emmanuel M. / Sol, Emmanuel M. |
 | Seller | `pinkysol07@gmail.com` / `seller@freightos.demo` | Amora, Daniella Sophia P. |
 | Customer | `customer@freightos.demo` | Reyes, Miguel A. |
+| OrderProcessor | `orderprocessor@freightos.demo` | Order Processing Desk |
 
 Sign into these with the normal Sign In form (see the seed file for the local
 development password; never use it outside local dev).
@@ -263,11 +264,22 @@ update these types to keep the typed Supabase client accurate.
 |------|------|--------|
 | **SuperAdmin** | Everything Admin can access, plus user and role management | Full system access; provisioned by an administrator and never self-registers |
 | **Admin** | Everything — Hub KPIs, pickup/manifest/handover, parcels, sellers, customers, tracking, waybill | Full operations: intake → manifest → handover, reports, settings, audit, and seller management |
+| **OperationsSupervisor** | Hub-wide operational view | Shift oversight, approvals, exceptions, reports, and operational corrections |
+| **PickupCoordinator** | Seller and pickup workflows | Schedule pickups, receive pickup counts, and coordinate seller intake |
+| **IntakeClerk** | Receiving workflows | Scan, weigh, label, and register parcels at the hub |
+| **OrderProcessor** | Separate pending-order queue | Confirm seller orders and move accepted orders into hub intake |
+| **Dispatcher** | Booking and dispatch workflows | Create bookings, sort parcels, and create/ready manifests |
+| **HandoverOfficer** | Ready manifests and handover history | Count parcels and finalize custody handover to a courier |
+| **ExceptionOfficer** | Operational exceptions | Resolve delayed, failed, damaged, lost, returned, and cancelled cases |
+| **FinanceOps** | COD and reporting data | Review COD and settlement-related operational reports |
+| **DocumentOfficer** | Waybill workflows | Create and check House/Master waybill records |
+| **CarrierRelations** | Partner tracking and exception data | Follow up courier scans, SLA issues, and missing updates |
+| **Courier** | Assigned parcels only | Update delivery progress and tracking for assigned parcels |
 | **Seller** | Own parcels and seller dashboard | Register parcels and view own shipments; seller pickup scheduling is not an Admin Pickup & Intake function |
 | **Customer** | Assigned parcels only (`src/app/(app)/dashboard/page.tsx:37` `CustomerDashboard`) | Provisioned by an administrator; read-only tracking |
 | **Citizen** | Public/citizen portal data tier | Same own-shipment visibility as Customer |
 
-Self-registration creates `Seller` accounts only. `Customer`, `Admin`, and `SuperAdmin` accounts must be provisioned by an administrator (seed `supabase/seed.sql` or use `admin.auth.admin.createUser` plus a `profiles` upsert). `Dispatcher`, `Planner`, `Carrier`, and `Client` are historical blueprint roles and are not active application roles. Navigation is filtered by role (`src/lib/nav.ts`) and RLS (`current_role()` `supabase/migrations/0001:252`) enforces the same at DB level.
+Self-registration creates `Seller` accounts only. All internal roles must be provisioned by SuperAdmin. Admins use `/admin/dashboard`; operational staff use the separate `/operations/dashboard` workspace. `OrderProcessor` owns the pending-order queue, while Admin can see the same queue in the Admin dashboard for oversight. Navigation is filtered by role (`src/lib/nav.ts`), server actions use `src/lib/rbac.ts`, and PostgreSQL workflow functions/RLS enforce the task boundary. The system's default drop-off scope ends at third-party carrier handover; use `Courier` accounts only if Airship directly manages last-mile delivery.
 
 ---
 
@@ -292,6 +304,7 @@ src/
 ├── app/
 │   ├── (app)/                 # Authenticated app shell (sidebar + header)
 │   │   ├── dashboard/         # Hub KPIs, platform volume, live feed
+│   │   ├── operations/        # Separate staff workspace + pending-order queue
 │   │   ├── pickup/            # Seller pickup scheduling & quick intake
 │   │   ├── booking/           # Parcel intake + dynamic delivery-platform dropdown
 │   │   ├── manifest/          # Courier manifesting (batch by platform)

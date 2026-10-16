@@ -12,7 +12,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
-import { canUpdateParcelStatus } from "@/lib/rbac";
+import { can, canUpdateParcelStatus } from "@/lib/rbac";
 import { getParcelById, getTrackingTimeline } from "@/lib/repos/parcels";
 import { listHubs } from "@/lib/repos/hubs";
 import TrackingTimeline from "@/components/parcels/TrackingTimeline";
@@ -48,7 +48,8 @@ export default async function ParcelDetailPage({
       : Promise.resolve([]),
   ]);
 
-  const staffOps = canUpdateParcelStatus(profile.role) && !demoMode;
+  const canEditParcel = canUpdateParcelStatus(profile.role) && !demoMode;
+  const canShareLocation = can(profile.role, "tracking.update") && !demoMode;
 
   return (
     <div className="space-y-4 max-w-6xl mx-auto">
@@ -158,7 +159,7 @@ export default async function ParcelDetailPage({
             destination={parcel.destination}
           />
 
-          {staffOps && hubs.length >= 0 && (
+          {canEditParcel && hubs.length >= 0 && (
             <ParcelOpsPanel
               parcelId={parcel.id}
               currentStatus={parcel.status}
@@ -181,7 +182,7 @@ export default async function ParcelDetailPage({
               <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">
                 Live Location
               </h3>
-              {staffOps && <ShareLocationButton parcelId={parcel.id} />}
+              {canShareLocation && <ShareLocationButton parcelId={parcel.id} />}
             </div>
             <ParcelMapLazy
               parcelId={parcel.id}

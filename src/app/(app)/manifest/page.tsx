@@ -1,5 +1,5 @@
 import { ClipboardList, Layers } from "lucide-react";
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { listShipments } from "@/lib/repos/shipments";
 import { listBatchesWithItems } from "@/lib/repos/batches";
 import PageHeader from "@/components/ui/PageHeader";
@@ -10,7 +10,7 @@ import BatchCards from "./BatchCards";
 export const dynamic = "force-dynamic";
 
 export default async function ManifestPage() {
-  await requireRole(["SuperAdmin", "Admin"]);
+  await requirePermission("manifests.manage");
   const [eligibleParcels, batches] = await Promise.all([
     listShipments({
       status: ["Booked", "Picked Up", "Dropped Off", "Intake", "At Origin Hub"],

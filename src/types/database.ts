@@ -4,7 +4,23 @@
  * changes (or regenerate with `supabase gen types typescript`).
  */
 
-export type AppRole = "SuperAdmin" | "Admin" | "Seller" | "Customer" | "Citizen";
+export type AppRole =
+  | "SuperAdmin"
+  | "Admin"
+  | "OperationsSupervisor"
+  | "PickupCoordinator"
+  | "IntakeClerk"
+  | "OrderProcessor"
+  | "Dispatcher"
+  | "HandoverOfficer"
+  | "ExceptionOfficer"
+  | "FinanceOps"
+  | "DocumentOfficer"
+  | "CarrierRelations"
+  | "Courier"
+  | "Seller"
+  | "Customer"
+  | "Citizen";
 export type TransportMode = "Ocean" | "Air" | "Road" | "Rail";
 export type DeliveryPlatform =
   | "J&T Express"
@@ -239,6 +255,7 @@ export interface Database {
           archived_at: string | null;
           client_id: string | null;
           carrier_id: string | null;
+          courier_profile_id: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -290,6 +307,7 @@ export interface Database {
           archived_at?: string | null;
           client_id?: string | null;
           carrier_id?: string | null;
+          courier_profile_id?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -306,6 +324,13 @@ export interface Database {
           {
             foreignKeyName: "shipments_carrier_id_fkey";
             columns: ["carrier_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "shipments_courier_profile_id_fkey";
+            columns: ["courier_profile_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];

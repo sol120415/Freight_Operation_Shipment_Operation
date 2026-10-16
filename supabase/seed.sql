@@ -67,6 +67,20 @@ begin
        now(), now());
   end if;
 
+  if not exists (select 1 from auth.users where email = 'orderprocessor@freightos.demo') then
+    insert into auth.users
+      (instance_id, id, aud, role, email, encrypted_password,
+       email_confirmed_at, confirmation_token, recovery_token,
+       email_change_token_new, email_change, raw_app_meta_data, raw_user_meta_data,
+       created_at, updated_at)
+    values
+      ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
+       'orderprocessor@freightos.demo', v_pass, now(), '', '', '', '',
+       '{"provider":"email","providers":["email"]}',
+       '{"role":"OrderProcessor","full_name":"Order Processing Desk"}',
+       now(), now());
+  end if;
+
   if not exists (select 1 from auth.users where email = 'pinkysol07@gmail.com') then
     insert into auth.users
       (instance_id, id, aud, role, email, encrypted_password,
@@ -104,6 +118,11 @@ begin
     from auth.users where email = 'seller@freightos.demo'
   on conflict (id) do update set role = 'Seller', full_name = 'Amora, Daniella Sophia P.';
 
+  insert into public.profiles (id, full_name, email, role, org_name)
+  select id, 'Order Processing Desk', email, 'OrderProcessor', 'Airship Express Ops'
+    from auth.users where email = 'orderprocessor@freightos.demo'
+  on conflict (id) do update set role = 'OrderProcessor', full_name = 'Order Processing Desk';
+
   insert into public.profiles (id, full_name, email, role, seller_id)
   select u.id, 'Amora, Daniella Sophia P.', u.email, 'Seller',
          (select s.id from public.sellers s where s.reference = 'SELL-DEMO-0001')
@@ -126,5 +145,5 @@ begin
     full_name = 'Amora, Daniella Sophia P.',
     seller_id = (select s.id from public.sellers s where s.reference = 'SELL-DEMO-0001');
 
-  raise notice 'Demo seed complete: Admin hazems120415@gmail.com, Seller pinkysol07@gmail.com, Customer customer@freightos.demo; shared password demo123456';
+  raise notice 'Demo seed complete: Admin hazems120415@gmail.com, Seller pinkysol07@gmail.com, Customer customer@freightos.demo, OrderProcessor orderprocessor@freightos.demo; shared password demo123456';
 end $$;

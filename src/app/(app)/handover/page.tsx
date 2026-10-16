@@ -1,5 +1,5 @@
 import { Handshake, History } from "lucide-react";
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { listReadyBatches } from "@/lib/repos/batches";
 import { listHandovers } from "@/lib/repos/handovers";
 import PageHeader from "@/components/ui/PageHeader";
@@ -10,7 +10,7 @@ import HandoverHistory from "./HandoverHistory";
 export const dynamic = "force-dynamic";
 
 export default async function HandoverPage() {
-  await requireRole(["SuperAdmin", "Admin"]);
+  await requirePermission("handover.view");
   const [readyBatches, handovers] = await Promise.all([
     listReadyBatches(),
     listHandovers(50),

@@ -10,7 +10,8 @@ describe("parseAppRole", () => {
     expect(parseAppRole("Citizen")).toBe("Citizen");
     expect(parseAppRole("super admin")).toBe("SuperAdmin");
     expect(parseAppRole("other user")).toBe("Citizen");
-    expect(parseAppRole("Dispatcher")).toBeNull(); // removed role
+    expect(parseAppRole("Dispatcher")).toBe("Dispatcher");
+    expect(parseAppRole("OrderProcessor")).toBe("OrderProcessor");
     expect(parseAppRole("Planner")).toBeNull(); // removed role
     expect(parseAppRole("Carrier")).toBeNull(); // removed role
     expect(parseAppRole(42)).toBeNull();
@@ -19,9 +20,13 @@ describe("parseAppRole", () => {
 });
 
 describe("role predicates (consolidated)", () => {
-  it("isStaff is SuperAdmin + Admin", () => {
+  it("isStaff includes internal hub staff but excludes external accounts", () => {
     expect(isStaff("SuperAdmin")).toBe(true);
     expect(isStaff("Admin")).toBe(true);
+    expect(isStaff("Dispatcher")).toBe(true);
+    expect(isStaff("OrderProcessor")).toBe(true);
+    expect(isStaff("ExceptionOfficer")).toBe(true);
+    expect(isStaff("Courier")).toBe(false);
     expect(isStaff("Seller")).toBe(false);
     expect(isStaff("Customer")).toBe(false);
     expect(isStaff("Citizen")).toBe(false);
@@ -30,6 +35,7 @@ describe("role predicates (consolidated)", () => {
   it("isOps is SuperAdmin + Admin after expansion", () => {
     expect(isOps("SuperAdmin")).toBe(true);
     expect(isOps("Admin")).toBe(true);
+    expect(isOps("IntakeClerk")).toBe(true);
   });
 
   it("only staff can approve load plans", () => {
@@ -38,9 +44,10 @@ describe("role predicates (consolidated)", () => {
     expect(canApproveLoadPlans("Seller")).toBe(false);
   });
 
-  it("only admin may post legacy tracking updates", () => {
+  it("tracking updates are available to supervisors and delivery users", () => {
     expect(canPostTracking("SuperAdmin")).toBe(true);
     expect(canPostTracking("Admin")).toBe(true);
+    expect(canPostTracking("Courier")).toBe(true);
     expect(canPostTracking("Customer")).toBe(false);
     expect(canPostTracking("Citizen")).toBe(false);
     expect(canPostTracking("Seller")).toBe(false);

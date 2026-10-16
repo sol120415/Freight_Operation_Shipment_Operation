@@ -1,5 +1,5 @@
 import { PackageSearch, Truck, UsersRound } from "lucide-react";
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { listSellers } from "@/lib/repos/sellers";
 import { listPickups } from "@/lib/repos/pickups";
 import { listShipments } from "@/lib/repos/shipments";
@@ -13,7 +13,7 @@ import QuickIntake from "./QuickIntake";
 export const dynamic = "force-dynamic";
 
 export default async function PickupPage() {
-  await requireRole(["SuperAdmin", "Admin"]);
+  await requirePermission("pickup.manage");
   const [sellers, pickups, { rows: intakenToday }] = await Promise.all([
     listSellers(),
     listPickups(),

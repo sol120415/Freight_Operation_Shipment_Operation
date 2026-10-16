@@ -132,7 +132,7 @@ export async function updateParcelLocation(
   input: unknown,
 ): Promise<ActionResult> {
   return runAction("parcels.updateLocation", parcelLocationSchema, input, async (form) => {
-    const check = await checkPermission("hubs.manage");
+    const check = await checkPermission("parcels.move");
     if ("error" in check) {
       return fail("Only operations staff can move parcels between facilities");
     }

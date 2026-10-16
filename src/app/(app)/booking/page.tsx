@@ -1,5 +1,5 @@
 import { Plus, PackagePlus } from "lucide-react";
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { listShipments } from "@/lib/repos/shipments";
 import { listSellers } from "@/lib/repos/sellers";
 import PageHeader from "@/components/ui/PageHeader";
@@ -14,7 +14,7 @@ export default async function BookingPage({
 }: {
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  await requireRole(["SuperAdmin", "Admin"]);
+  await requirePermission("bookings.manage");
   const { q, status } = await searchParams;
   const [{ rows }, sellers] = await Promise.all([
     listShipments({ q, status, perPage: 50 }),
