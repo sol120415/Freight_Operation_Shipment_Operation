@@ -19,11 +19,29 @@ import {
 import type { AppRole } from "@/types";
 
 import { parseAppRole } from "@/lib/roles";
+import { isAdminRole, isOpsStaffRole, isCourierRole } from "@/lib/rbac";
 import { issueOtp, verifyOtp } from "@/lib/otp";
+import {
+  clearRememberedLogin,
+  hasRememberedLogin,
+  rememberLoginForDay,
+} from "@/lib/rememberMe";
 
 export interface AuthState {
   error?: string;
   message?: string;
+}
+
+class LoginFlowError extends Error {}
+
+function isNextRedirect(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "digest" in error &&
+    typeof (error as { digest: string }).digest === "string" &&
+    (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+  );
 }
 
 /**
@@ -102,6 +120,7 @@ export async function requestLoginOtp(
 ): Promise<AuthState> {
   const rawEmail = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
+  const rememberMe = formData.get("rememberMe") === "on";
 
   // Sign-in validates format only — never password complexity.
   // Complexity (uppercase, number, special char) is register-only.
@@ -118,6 +137,12 @@ export async function requestLoginOtp(
     const checked = await checkCredentialsWithoutSession(email, password);
     if (!checked.ok) return { error: checked.error };
 
+    // The password is still checked first. The signed device cookie only
+    // removes the extra email-code step for this same account and device.
+    if (await hasRememberedLogin(checked.email)) {
+      return completePasswordLogin(checked.email, password, rememberMe);
+    }
+
     const issued = await issueOtp(checked.email, "login");
     if (!issued.ok) return { error: issued.error };
 
@@ -125,6 +150,8 @@ export async function requestLoginOtp(
       message: "Sign-in code sent. Check your email and enter it below within 10 minutes.",
     };
   } catch (e) {
+    if (isNextRedirect(e)) throw e;
+    if (e instanceof LoginFlowError) return { error: e.message };
     console.error("login OTP request failed:", e);
     return { error: "Unable to connect to authentication service. Please try again." };
   }
@@ -142,6 +169,55 @@ export async function authenticate(
   return requestLoginOtp(prev, formData);
 }
 
+/** Finish a password login after the OTP step (or a valid remembered-device check). */
+async function completePasswordLogin(
+  email: string,
+  password: string,
+  rememberMe = false,
+): Promise<never> {
+  const supabase = await createClient();
+  const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (signInError || !authData.user) {
+    throw new LoginFlowError(
+      friendlyAuthError(signInError?.message ?? "Invalid login credentials"),
+    );
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, is_active")
+    .eq("id", authData.user.id)
+    .maybeSingle();
+  if (profile && !profile.is_active) {
+    await supabase.auth.signOut();
+    throw new LoginFlowError("Invalid email or password.");
+  }
+
+  if (rememberMe) await rememberLoginForDay(email);
+
+  let targetRole: AppRole = "Customer";
+  if (profile?.role) {
+    targetRole = parseAppRole(profile.role) ?? "Customer";
+  } else if (authData.user.user_metadata?.role) {
+    targetRole = parseAppRole(authData.user.user_metadata.role) ?? "Customer";
+  }
+
+  const destination = isAdminRole(targetRole)
+    ? "/admin/dashboard"
+    : isOpsStaffRole(targetRole)
+      ? "/operations/dashboard"
+      : isCourierRole(targetRole)
+      ? "/parcels"
+      : targetRole === "Seller"
+        ? "/seller/dashboard"
+        : "/dashboard";
+  revalidatePath("/", "layout");
+  redirect(destination);
+}
+
 /** Verify the OTP and password, then create the cookie-backed Supabase session. */
 export async function verifyLoginOtp(
   _prev: AuthState,
@@ -152,6 +228,7 @@ export async function verifyLoginOtp(
     password: String(formData.get("password") ?? ""),
     token: String(formData.get("token") ?? ""),
   };
+  const rememberMe = formData.get("rememberMe") === "on";
 
   try {
     signInSchema.parse({ email: input.email, password: input.password });
@@ -172,52 +249,16 @@ export async function verifyLoginOtp(
     const verified = await verifyOtp(checked.email, "login", input.token);
     if (!verified.ok) return { error: verified.error };
 
-    const supabase = await createClient();
-    const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: checked.email,
-      password: input.password,
-    });
-    if (signInError || !authData.user) {
-      return { error: friendlyAuthError(signInError?.message ?? "Invalid login credentials") };
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, is_active")
-      .eq("id", authData.user.id)
-      .maybeSingle();
-    if (profile && !profile.is_active) {
-      await supabase.auth.signOut();
-      return { error: "Invalid email or password." };
-    }
-
-    let targetRole: AppRole = "Customer";
-    if (profile?.role) {
-      targetRole = parseAppRole(profile.role) ?? "Customer";
-    } else if (authData.user.user_metadata?.role) {
-      targetRole = parseAppRole(authData.user.user_metadata.role) ?? "Customer";
-    }
-
-    const destination =
-      targetRole === "SuperAdmin" || targetRole === "Admin"
-        ? "/admin/dashboard"
-        : targetRole === "Seller"
-          ? "/seller/dashboard"
-          : "/dashboard";
-    revalidatePath("/", "layout");
-    redirect(destination);
+    return completePasswordLogin(checked.email, input.password, rememberMe);
   } catch (e) {
-    if (
-      e &&
-      typeof e === "object" &&
-      "digest" in e &&
-      typeof (e as { digest: string }).digest === "string" &&
-      (e as { digest: string }).digest.startsWith("NEXT_REDIRECT")
-    ) {
-      throw e;
-    }
+    if (isNextRedirect(e)) throw e;
     console.error("login OTP verification failed:", e);
-    return { error: "Unable to connect to authentication service. Please try again." };
+    return {
+      error:
+        e instanceof LoginFlowError
+          ? e.message
+          : "Unable to connect to authentication service. Please try again.",
+    };
   }
 }
 
@@ -227,9 +268,16 @@ export async function signOut() {
     await supabase.auth.signOut();
   } catch (e) {
     console.error("signOut failed:", e);
+  } finally {
+    await clearRememberedLogin();
   }
   revalidatePath("/", "layout");
   redirect("/login");
+}
+
+/** Clear the trusted-device cookie when the client-side inactivity timer fires. */
+export async function clearRememberedDevice(): Promise<void> {
+  await clearRememberedLogin();
 }
 
 // ---------------------------------------------------------------------------
@@ -596,6 +644,8 @@ export async function resetPasswordWithOtp(
     email_confirm: true,
   });
   if (error) return { error: friendlyAuthError(error.message) };
+
+  await clearRememberedLogin();
 
   return { message: "Password successfully changed. Please sign in with your new password." };
 }

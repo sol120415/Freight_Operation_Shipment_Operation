@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Clock3, LogIn } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import { createClient } from "@/lib/supabase/client";
+import { clearRememberedDevice } from "@/app/login/actions";
 
 const WARNING_BEFORE_SECONDS = 30;
 
@@ -92,7 +93,10 @@ export default function SessionTimeoutProvider({
       signOutPromise.current = (async () => {
         try {
           const supabase = createClient();
-          await supabase.auth.signOut();
+          await Promise.allSettled([
+            supabase.auth.signOut(),
+            clearRememberedDevice(),
+          ]);
         } catch {
           // Keep the expired-session dialog available if sign-out is offline.
         }

@@ -23,8 +23,6 @@ import {
   authenticate,
   verifyLoginOtp,
   requestPasswordResetLink,
-  requestPasswordResetOtp,
-  resetPasswordWithOtp,
   requestSellerOtp,
   verifySellerOtpAndRegister,
   type AuthState,
@@ -180,6 +178,7 @@ function SignInForm({
   const [step, setStep] = useState<"credentials" | "otp">("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(0);
   const [portalReady, setPortalReady] = useState(false);
   const [fails, setFails] = useState(0);
@@ -315,7 +314,21 @@ function SignInForm({
           </div>
         </div>
 
-        <div className="flex items-center justify-end pt-0.5">
+        <div className="flex items-center justify-between gap-3 pt-0.5">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-[13px] text-white/70">
+            <input
+              type="checkbox"
+              name="rememberMe"
+              value="on"
+              checked={rememberMe}
+              onChange={(event) => setRememberMe(event.target.checked)}
+              className="h-4 w-4 rounded border-white/30 bg-white/10 text-pink-500 accent-pink-500 focus:ring-2 focus:ring-pink-500/40"
+            />
+            <span>
+              <span className="font-semibold text-white">Remember Me</span>
+              <span className="ml-1 text-white/50">(24 hours)</span>
+            </span>
+          </label>
           <button
             suppressHydrationWarning
             type="button"
@@ -383,6 +396,7 @@ function SignInForm({
                 <form ref={verifyFormRef} action={verifyAction} className="space-y-3">
                   <input type="hidden" name="email" value={email} />
                   <input type="hidden" name="password" value={password} />
+                  <input type="hidden" name="rememberMe" value={rememberMe ? "on" : "off"} />
                   <div>
                     <label htmlFor="login-otp-token" className={labelCls}>Verification code</label>
                     <input
@@ -779,178 +793,6 @@ function SellerSignupForm({ styling, showPw, onTogglePw }: { styling: FormStylin
 // ---------------------------------------------------------------------------
 // Forgot password (email → OTP → new strong password)
 // ---------------------------------------------------------------------------
-
-function LegacyForgotPasswordForm({ styling, onBack }: { styling: FormStyling } & { onBack: () => void }) {
-  const { inputCls, labelCls } = styling;
-  const [email, setEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
-  const [clientError, setClientError] = useState<string | null>(null);
-
-  const [reqState, reqAction, reqPending] = useActionState<AuthState, FormData>(requestPasswordResetOtp, {});
-  const [rstState, rstAction, rstPending] = useActionState<AuthState, FormData>(resetPasswordWithOtp, {});
-
-  const sentMessage = reqState.message;
-  useEffect(() => {
-    if (sentMessage) {
-      setCodeSent(true);
-      setClientError(null);
-    }
-  }, [sentMessage]);
-
-  return (
-    <div className="mt-5 space-y-4">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white/60 hover:text-white transition cursor-pointer"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" /> Back to sign in
-      </button>
-
-      <form action={reqAction} className="space-y-3">
-        <div>
-          <label className={labelCls}>Registered email</label>
-          <div className="relative">
-            <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
-            <input
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputCls}
-              placeholder="you@company.com"
-            />
-          </div>
-        </div>
-        <button
-          type="submit"
-          disabled={reqPending}
-          className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-white/15 hover:bg-white/20 disabled:opacity-60 text-white text-sm font-semibold border border-white/20 transition cursor-pointer"
-        >
-          {reqPending ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" /> Sending code...
-            </>
-          ) : (
-            <>{codeSent ? "Resend code (expires in 10 min)" : "Send verification code"}</>
-          )}
-        </button>
-        {reqState.error && (
-          <div className="text-[13px] text-rose-100 bg-rose-500/15 border border-rose-300/25 rounded-xl p-3 flex items-start gap-2">
-            <ShieldAlert className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
-            <span>{reqState.error}</span>
-          </div>
-        )}
-        {reqState.message && (
-          <div className="text-[13px] text-emerald-100 bg-emerald-500/15 border border-emerald-300/25 rounded-xl p-3 flex items-start gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
-            <span>{reqState.message}</span>
-          </div>
-        )}
-      </form>
-
-      {codeSent && (
-        <form
-          action={rstAction}
-          className="space-y-3"
-          onSubmit={(e) => {
-            const fd = new FormData(e.currentTarget);
-            const code = String(fd.get("token") ?? "");
-            const np = String(fd.get("newPassword") ?? "");
-            const cp = String(fd.get("confirmPassword") ?? "");
-            if (!/^\d{6}$/.test(code.trim())) {
-              e.preventDefault();
-              setClientError("Enter the 6-digit code sent to your email.");
-              return;
-            }
-            if (passwordChecks(np).some((c) => !c.ok)) {
-              e.preventDefault();
-              setClientError("New password does not meet all strength requirements below.");
-              return;
-            }
-            if (np !== cp) {
-              e.preventDefault();
-              setClientError("Passwords don't match.");
-              return;
-            }
-            setClientError(null);
-          }}
-        >
-          <input type="hidden" name="email" value={email} />
-          <div>
-            <label className={labelCls}>6-digit code (expires in 10 minutes)</label>
-            <input
-              name="token"
-              required
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              className="w-full h-11 bg-white/10 border border-white/15 rounded-xl px-3.5 text-sm font-mono tracking-[0.3em] text-white placeholder:text-white/35 focus:outline-none focus:border-pink-300/60 focus:ring-2 focus:ring-pink-500/30 transition text-center"
-              placeholder="••••••"
-            />
-          </div>
-          <div>
-            <label className={labelCls}>New password</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
-              <input
-                name="newPassword"
-                type="password"
-                required
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className={inputCls}
-                placeholder="••••••••"
-              />
-            </div>
-            <PasswordChecklist password={newPassword} />
-          </div>
-          <div>
-            <label className={labelCls}>Confirm new password</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
-              <input
-                name="confirmPassword"
-                type="password"
-                required
-                autoComplete="new-password"
-                className={inputCls}
-                placeholder="••••••••"
-              />
-            </div>
-          </div>
-          {(clientError || rstState.error) && (
-            <div className="text-[13px] text-rose-100 bg-rose-500/15 border border-rose-300/25 rounded-xl p-3 flex items-start gap-2">
-              <ShieldAlert className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
-              <span>{clientError ?? rstState.error}</span>
-            </div>
-          )}
-          {rstState.message && (
-            <div className="text-[13px] text-emerald-100 bg-emerald-500/15 border border-emerald-300/25 rounded-xl p-3 flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
-              <span>{rstState.message}</span>
-            </div>
-          )}
-          <SubmitButton label="Verify & Change Password" pending={rstPending} />
-          <p className="text-center text-[12px] text-white/50">
-            Password successfully changed?{" "}
-            <button
-              type="button"
-              onClick={onBack}
-              className="font-bold text-pink-300 hover:underline cursor-pointer"
-            >
-              Sign in
-            </button>
-          </p>
-        </form>
-      )}
-    </div>
-  );
-}
 
 function ForgotPasswordForm({ styling, onBack }: { styling: FormStyling } & { onBack: () => void }) {
   const { inputCls, labelCls } = styling;
